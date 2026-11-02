@@ -71,8 +71,12 @@ namespace InsureChatBot.Api.Services.Conversation
             "playbooks/เทคนิคปิดการขาย.md",
             "playbooks/เปรียบเทียบแผน-จับคู่-need.md",
             "concepts/ประกันรถยนต์.md",
+            "concepts/ประเภทประกันวินาศภัย.md",
+            "concepts/ประเภทประกันชีวิต.md",
+            "concepts/ประกันกลุ่ม-สวัสดิการพนักงาน.md",
             "concepts/คปภ-การกำกับและจรรยาบรรณตัวแทน.md",
             "knowledge_base/07-faq-and-consultative-selling-guide.md",
+            "knowledge_base/11-customer-question-keywords.md",
         };
 
         public SystemPromptProvider(IAppSettingsStore store, IWebHostEnvironment env, IConfiguration config, ILogger<SystemPromptProvider> logger)

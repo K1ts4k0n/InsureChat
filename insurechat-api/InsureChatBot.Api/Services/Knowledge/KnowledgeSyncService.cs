@@ -15,7 +15,7 @@ namespace InsureChatBot.Api.Services.Knowledge
         private readonly string _wikiDir;
         private readonly ILogger<KnowledgeSyncService> _logger;
 
-        // 6 ไฟล์ที่ inject เข้า prompt (ตรงกับ SystemPromptProvider.KnowledgeFiles) — mark IsInjected
+        // ไฟล์ที่ inject เข้า prompt (ตรงกับ SystemPromptProvider.KnowledgeFiles) — mark IsInjected
         private static readonly HashSet<string> InjectedSlugs = new(StringComparer.OrdinalIgnoreCase)
         {
             "playbooks/spin-selling-การขายแบบที่ปรึกษา",
@@ -23,8 +23,12 @@ namespace InsureChatBot.Api.Services.Knowledge
             "playbooks/เทคนิคปิดการขาย",
             "playbooks/เปรียบเทียบแผน-จับคู่-need",
             "concepts/ประกันรถยนต์",
+            "concepts/ประเภทประกันวินาศภัย",
+            "concepts/ประเภทประกันชีวิต",
+            "concepts/ประกันกลุ่ม-สวัสดิการพนักงาน",
             "concepts/คปภ-การกำกับและจรรยาบรรณตัวแทน",
             "knowledge_base/07-faq-and-consultative-selling-guide",
+            "knowledge_base/11-customer-question-keywords",
         };
 
         public KnowledgeSyncService(IDbContextFactory<InsureChatDbContext> factory, IWebHostEnvironment env, IConfiguration config, ILogger<KnowledgeSyncService> logger)

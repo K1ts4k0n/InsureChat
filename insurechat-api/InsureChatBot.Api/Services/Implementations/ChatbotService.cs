@@ -214,8 +214,13 @@ namespace InsureChatBot.Api.Services.Implementations
         /// <summary>ปุ่ม fallback แบบ deterministic เมื่อ LLM ไม่พร้อม/ล่ม — อิงว่ามี candidate ไหม (ADR 0008).</summary>
         private static List<string> FallbackSuggestions(ChatbotConversationContext context)
         {
-            if ((context?.Candidates?.Count ?? 0) == 0) return new List<string>();
-            return new List<string> { "ขอแผนถูกสุด", "เพิ่มทุนประกัน", "ดูทั้งหมด" };
+            if ((context?.Candidates?.Count ?? 0) == 0)
+                return LlmConversationEngine.StarterSuggestions();
+            return new List<string>
+            {
+                "ขอแผนถูกสุด", "เพิ่มทุนประกัน", "ดูน้ำท่วม",
+                "เทียบ 2+ กับ 3+", "ดูทั้งหมด", "ขอใบเสนอราคา"
+            };
         }
 
         public Task<ChatbotConversationHistory> GetConversationHistoryAsync(string userCode)

@@ -93,7 +93,8 @@ namespace InsureChatBot.Api.Services.Conversation
             };
         }
 
-        private const int MaxSuggestions = 3;
+        // แสดงได้หลายคำถามพอให้ลูกค้าเลือกเรื่องที่กังวลจริง ๆ โดย UI จะตัดบรรทัดให้อัตโนมัติ
+        private const int MaxSuggestions = 6;
 
         // ===== streaming (ADR 0009) =====
 
@@ -235,11 +236,13 @@ namespace InsureChatBot.Api.Services.Conversation
         public async Task<List<string>> SuggestAsync(ChatbotConversationContext context)
         {
             context ??= new ChatbotConversationContext();
-            if ((context.Candidates?.Count ?? 0) == 0) return new List<string>();
+            // หน้าแชตอาจยังไม่มีรถ/candidate: ให้มีคำถามความรู้ที่กดได้เสมอ
+            // แทนการส่ง prompt ที่บังคับให้ LLM อ้างอิง candidate set ที่ยังไม่มี
+            if ((context.Candidates?.Count ?? 0) == 0) return StarterSuggestions();
 
             var system = _prompt.Get() + "\n\n# สถานการณ์ปัจจุบัน\n" + CandidateSummary(context) +
                 "\n\n# คำสั่งเฉพาะรอบนี้\nลูกค้าเพิ่งเปิดแชต (ทักทายเรียบร้อยแล้ว). ขอ**เฉพาะ**ปุ่มถามด่วน — อย่าทักทาย อย่าอธิบาย อย่าใส่ตาราง.\n" +
-                "ตอบกลับเป็น JSON array ของสตริงไทยสั้น ๆ 2-3 อัน (มุมมองลูกค้า, กด=ถามต่อได้, ≤20 ตัวอักษร, อิง candidate set จริง) เท่านั้น เช่น [\"ขอแผนถูกสุด\",\"เพิ่มทุนประกัน\",\"ดูทั้งหมด\"]";
+                "ตอบกลับเป็น JSON array ของสตริงไทยสั้น ๆ 4-6 อัน (มุมมองลูกค้า, กด=ถามต่อได้, ≤24 ตัวอักษร, อิง candidate set จริง) เท่านั้น เช่น [\"ขอแผนถูกสุด\",\"เพิ่มทุนประกัน\",\"ดูน้ำท่วม\",\"เทียบ 2+ กับ 3+\"]";
             var messages = new List<LlmMessage>
             {
                 new() { Role = "system", Content = system },
@@ -249,6 +252,17 @@ namespace InsureChatBot.Api.Services.Conversation
             var resp = await _client.CompleteAsync(messages, null);
             return ParseChipsJson(resp?.Content).Take(MaxSuggestions).ToList();
         }
+
+        /// <summary>คำถามเริ่มต้นเมื่อยังไม่ได้ค้นรถ — ทุกข้อความรองรับใน fallback ด้วย.</summary>
+        public static List<string> StarterSuggestions() => new()
+        {
+            "ชั้น 1 คุ้มครองอะไร",
+            "2+ ต่างจาก 3+ อย่างไร",
+            "รถน้ำท่วมเคลมได้ไหม",
+            "พ.ร.บ. คุ้มครองอะไร",
+            "ประกันบ้านคุ้มครองอะไร",
+            "ประกัน PA คืออะไร"
+        };
 
         // ===== suggestion chips parsing =====
         private static readonly System.Text.RegularExpressions.Regex SuggestLine =

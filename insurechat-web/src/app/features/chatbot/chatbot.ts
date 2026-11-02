@@ -350,7 +350,10 @@ export class Chatbot implements OnInit {
       })
       .subscribe({
         next: (res) => this.suggestions.set(res.suggestions ?? []),
-        error: () => this.suggestions.set(['สนใจประกันชั้น 1', 'สนใจประกัน 2+', 'ดูตารางความคุ้มครอง', 'สอบถามเรื่องเบี้ย'])
+        error: () => this.suggestions.set([
+          'ชั้น 1 คุ้มครองอะไร', '2+ ต่างจาก 3+ อย่างไร', 'รถน้ำท่วมเคลมได้ไหม',
+          'พ.ร.บ. คุ้มครองอะไร', 'ประกันบ้านคุ้มครองอะไร', 'ประกัน PA คืออะไร'
+        ])
       });
   }
 
