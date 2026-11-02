@@ -8,6 +8,7 @@ import { ThemeToggle } from '../../core/theme-toggle';
 import { validateDocFile, downscaleImage } from '../../core/doc-upload';
 import { brandSlug, topBrands, topProvinces } from '../../core/motor-popular';
 import { DocIntakeHandoff } from '../../core/doc-intake-handoff';
+import { QuoteShare } from '../../core/quote-share';
 
 @Component({
   selector: 'app-quote',
@@ -40,6 +41,7 @@ export class Quote implements OnInit {
     private facet: MotorFacet,
     private handoff: QuoteHandoff,
     private docIntake: DocIntakeHandoff,
+    private quoteShare: QuoteShare,
     private router: Router
   ) {
     this.isOfflineMode = this.facet.isOfflineMode;
@@ -309,6 +311,14 @@ export class Quote implements OnInit {
   /** ส่งเฉพาะแผนที่ลูกค้าเลือกเข้าแชต เพื่อให้ใบเสนอราคาตรงกับตัวเลือก */
   choosePackage(pkg: PackageRow): void { this.openChat([pkg]); }
 
+  printPackagePdf(pkg: PackageRow): void {
+    this.quoteShare.printPdf({ package: pkg, brand: this.brand, model: this.model, year: +this.year, provinceLabel: this.provinceLabel });
+  }
+
+  sharePackageLine(pkg: PackageRow): void {
+    this.quoteShare.shareLine({ package: pkg, brand: this.brand, model: this.model, year: +this.year, provinceLabel: this.provinceLabel });
+  }
+
   /** ส่งรายการที่กรองแล้วให้ AI ช่วยเปรียบเทียบต่อ โดยไม่แอบนำแผนอื่นมาปน */
   consultOnVisiblePackages(): void {
     const rows = this.visiblePackages;
@@ -316,11 +326,15 @@ export class Quote implements OnInit {
   }
 
   private openChat(candidates: PackageRow[]): void {
-    const provLabel = this.provinces().find((p) => p.value === this.province)?.label ?? '';
+    const provLabel = this.provinceLabel;
     this.handoff.set({
       candidates, brand: this.brand, model: this.model, cc: this.cc, year: +this.year,
       province: this.province, provinceLabel: provLabel
     });
     this.router.navigate(['/chat']);
+  }
+
+  private get provinceLabel(): string {
+    return this.provinces().find((p) => p.value === this.province)?.label ?? '';
   }
 }

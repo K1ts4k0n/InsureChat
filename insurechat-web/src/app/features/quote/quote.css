@@ -405,6 +405,14 @@ tr:last-child td { border-bottom: none; }
   transition: filter var(--dur) var(--ease);
 }
 .choose:hover { filter: brightness(0.92); }
+.plan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); }
+.share-btn {
+  padding: var(--sp-2) var(--sp-3); background: var(--surface); color: var(--text-muted);
+  border: 1px solid var(--border-strong); border-radius: var(--r-md); font-family: inherit;
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold); cursor: pointer;
+  transition: background var(--dur) var(--ease), border-color var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.share-btn:hover { background: var(--surface-3); border-color: var(--brand); color: var(--brand-ink); }
 .warn {
   margin: 0;
   padding: var(--sp-3);
