@@ -4,5 +4,5 @@
 // build production จะสลับมาใช้ไฟล์นี้แทน environment.ts ผ่าน fileReplacements ใน angular.json
 export const environment = {
   production: true,
-  apiUrl: 'http://insurechatbackend.clicktodesign.net/api'
+  apiUrl: (typeof window !== 'undefined' && localStorage.getItem('insurechat_api_url')) || 'http://insurechatbackend.clicktodesign.net/api'
 };
