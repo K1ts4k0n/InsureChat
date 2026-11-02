@@ -247,6 +247,16 @@ namespace InsureChatBot.Api.Services.Motor
                 var brand = !string.IsNullOrWhiteSpace(r.Brand) ? r.Brand.Trim().ToUpperInvariant() : "HONDA";
                 var model = !string.IsNullOrWhiteSpace(r.Model) ? r.Model.Trim().ToUpperInvariant() : "CIVIC";
                 var year = r.Year > 0 ? r.Year : 2022;
+                string polTypeName = null;
+                if (r.PolTypeId.HasValue)
+                {
+                    // SQLite demo ไม่มี PackagePolType: PolTypeId จาก /PolTypes เป็นลำดับของชื่อชั้นที่เรียงแล้ว
+                    var types = (await c.QueryAsync<string>(
+                        "SELECT DISTINCT PolTypeName FROM MotorPackages WHERE CarBrandName = @brand AND CarModelName = @model AND Year = @year ORDER BY PolTypeName",
+                        new { brand, model, year })).ToList();
+                    var index = r.PolTypeId.Value - 1;
+                    if (index >= 0 && index < types.Count) polTypeName = types[index];
+                }
 
                 var sql = @"SELECT Id AS PackageId, InsurerName, 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=100' AS InsurerLogo,
                                    PackageName, PolTypeName, RenovType, SumInsureMax,
@@ -255,6 +265,7 @@ namespace InsureChatBot.Api.Services.Motor
                             WHERE CarBrandName = @brand AND CarModelName = @model ";
                 if (r.Year > 0) sql += "AND Year = @year ";
                 if (!string.IsNullOrWhiteSpace(r.Cc)) sql += "AND Ccmax = @Cc ";
+                if (!string.IsNullOrWhiteSpace(polTypeName)) sql += "AND PolTypeName = @PolTypeName ";
                 if (r.SumInsure.HasValue && r.SumInsure.Value > 0) sql += "AND SumInsureMax = @SumInsure ";
 
                 sql += (r.Sort) switch
@@ -266,7 +277,7 @@ namespace InsureChatBot.Api.Services.Motor
                 };
                 sql += "LIMIT 500";
 
-                var rows = (await c.QueryAsync<PackageRow>(sql, new { brand, model, year, Cc = r.Cc, SumInsure = r.SumInsure })).ToList();
+                var rows = (await c.QueryAsync<PackageRow>(sql, new { brand, model, year, Cc = r.Cc, PolTypeName = polTypeName, SumInsure = r.SumInsure })).ToList();
                 if (rows.Count == 0)
                 {
                     // Fallback using LIKE in case model is partial (e.g. CAMRY matching CAMRY 2.0)
@@ -276,8 +287,9 @@ namespace InsureChatBot.Api.Services.Motor
                                     FROM MotorPackages
                                     WHERE CarBrandName = @brand AND CarModelName LIKE @modelPattern ";
                     if (r.Year > 0) likeSql += "AND Year = @year ";
+                    if (!string.IsNullOrWhiteSpace(polTypeName)) likeSql += "AND PolTypeName = @PolTypeName ";
                     likeSql += "ORDER BY PremNet ASC LIMIT 500";
-                    rows = (await c.QueryAsync<PackageRow>(likeSql, new { brand, modelPattern = $"%{model}%", year })).ToList();
+                    rows = (await c.QueryAsync<PackageRow>(likeSql, new { brand, modelPattern = $"%{model}%", year, PolTypeName = polTypeName })).ToList();
                 }
 
                 if (rows.Count > 0)

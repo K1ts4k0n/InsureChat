@@ -139,7 +139,36 @@
         }
       </section>
 
-      <!-- 4) จังหวัดจดทะเบียน (ADR 0005 — เก็บลง proposal, ไม่กรองผลค้น/เบี้ย) -->
+      <!-- 4) ชั้นประกัน — โหลดจากแผนที่มีจริงของรถคันนี้ -->
+      <section class="step-card type-card" id="step-type">
+        <div class="step-heading">
+          <div>
+            <h2 class="step-title">เลือกประเภทประกัน</h2>
+            <p class="step-description">แสดงเฉพาะชั้นประกันที่มีสำหรับรถคันนี้ เลือก “ทั้งหมด” เพื่อเปรียบเทียบทุกแผน</p>
+          </div>
+          @if (year && polTypes().length) { <span class="availability">มี {{ polTypes().length }} ประเภท</span> }
+        </div>
+        @if (!year) {
+          <p class="tile-empty">เลือกปีรถก่อน</p>
+        } @else if (polTypes().length === 0) {
+          <p class="tile-empty">กำลังตรวจสอบประเภทประกันที่มี…</p>
+        } @else {
+          <div class="type-options" role="group" aria-label="ประเภทประกัน">
+            <button type="button" class="type-option" [class.active]="selectedPolTypeId === null"
+                    [attr.aria-pressed]="selectedPolTypeId === null" (click)="selectPolType(null)">
+              <span>ทุกประเภท</span><small>เปรียบเทียบทั้งหมด</small>
+            </button>
+            @for (type of polTypes(); track type.polTypeId) {
+              <button type="button" class="type-option" [class.active]="selectedPolTypeId === type.polTypeId"
+                      [attr.aria-pressed]="selectedPolTypeId === type.polTypeId" (click)="selectPolType(type.polTypeId)">
+                <span>{{ type.polTypeName }}</span><small>ดูเฉพาะแผนนี้</small>
+              </button>
+            }
+          </div>
+        }
+      </section>
+
+      <!-- 5) จังหวัดจดทะเบียน (ADR 0005 — เก็บลง proposal, ไม่กรองผลค้น/เบี้ย) -->
       <section class="step-card" id="step-province">
         <h2 class="step-title">เลือกจังหวัดที่จดทะเบียนรถ</h2>
         @if (!year) {
@@ -168,7 +197,65 @@
     </div>
 
     <button id="search-row" class="search-btn" (click)="search()" [disabled]="!canSearch || loading()">
-      {{ loading() ? 'กำลังค้นหา…' : 'ค้นหาเบี้ยประกัน แล้วคุยกับที่ปรึกษา' }}
+      {{ loading() ? 'กำลังค้นหาแผน…' : 'ค้นหาและเปรียบเทียบแผนประกัน' }}
     </button>
+
+    @if (packages().length) {
+      <section class="results" id="results" aria-live="polite">
+        <header class="result-head">
+          <div>
+            <p class="eyebrow">แผนที่พบสำหรับรถของคุณ</p>
+            <h2>เลือกบริษัทและแผนที่ตรงใจ</h2>
+            <p class="info">พบ {{ packages().length }} แผนจากข้อมูลจริง เลือกบริษัทเพื่อดูเฉพาะแผนที่ต้องการ</p>
+          </div>
+          <div class="result-actions">
+            <label class="sort">
+              <span>เรียงตาม</span>
+              <select [(ngModel)]="resultSort">
+                <option value="prem">เบี้ยต่ำสุด</option>
+                <option value="sum_desc">ทุนประกันสูงสุด</option>
+              </select>
+            </label>
+          </div>
+        </header>
+
+        <div class="company-filter" role="group" aria-label="กรองบริษัทประกัน">
+          <button type="button" [class.active]="!selectedInsurer" (click)="selectedInsurer = ''">ทุกบริษัท <span>{{ packages().length }}</span></button>
+          @for (insurer of insurers; track insurer) {
+            <button type="button" [class.active]="selectedInsurer === insurer" (click)="selectedInsurer = insurer">
+              {{ insurer }} <span>{{ insurerCount(insurer) }}</span>
+            </button>
+          }
+        </div>
+
+        @if (visiblePackages.length) {
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>บริษัท / แผน</th><th>ประเภท</th><th>ซ่อม</th><th class="num">ทุนประกัน</th><th class="num">เบี้ย/ปี</th><th></th></tr>
+              </thead>
+              <tbody>
+                @for (pkg of visiblePackages; track pkg.packageId) {
+                  <tr>
+                    <td class="prod"><div class="ins">
+                      @if (pkg.insurerLogo) { <img class="logo" [src]="pkg.insurerLogo" [alt]="pkg.insurerName" (error)="onLogoError($event)" /> }
+                      <strong>{{ pkg.insurerName }}</strong>
+                    </div><span class="pkg">{{ pkg.packageName }}</span></td>
+                    <td><span class="class-badge">{{ pkg.polTypeName }}</span></td>
+                    <td>{{ pkg.renovType ? 'ซ่อม' + pkg.renovType : '—' }}</td>
+                    <td class="num">{{ pkg.sumInsureMax | number:'1.0-0' }} บ.</td>
+                    <td class="num"><strong>{{ pkg.premStm | number:'1.0-0' }} บ.</strong><span class="net">รวมอากร</span></td>
+                    <td class="ctr"><button type="button" class="choose" (click)="choosePackage(pkg)">เลือกแผนนี้</button></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          <button type="button" class="cmp-btn" (click)="consultOnVisiblePackages()">ให้ที่ปรึกษาช่วยเปรียบเทียบ {{ visiblePackages.length }} แผนนี้</button>
+        } @else {
+          <p class="empty">ไม่พบแผนของบริษัทที่เลือก ลองเลือก “ทุกบริษัท” อีกครั้งค่ะ</p>
+        }
+      </section>
+    }
   </main>
 </div>

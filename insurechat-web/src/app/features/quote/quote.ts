@@ -2,7 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { MotorFacet, FacetItem, DocumentExtractResponse } from '../../core/motor-facet';
+import { MotorFacet, FacetItem, DocumentExtractResponse, PackageRow, PolType } from '../../core/motor-facet';
 import { QuoteHandoff } from '../../core/quote-handoff';
 import { ThemeToggle } from '../../core/theme-toggle';
 import { validateDocFile, downscaleImage } from '../../core/doc-upload';
@@ -21,8 +21,13 @@ export class Quote implements OnInit {
   models = signal<FacetItem[]>([]);
   years = signal<FacetItem[]>([]);
   provinces = signal<FacetItem[]>([]);          // ฟิลด์ที่ 5 (ADR 0005) — เก็บลง proposal ไม่กรองผล
+  polTypes = signal<PolType[]>([]);
+  packages = signal<PackageRow[]>([]);
 
   brand = ''; model = ''; cc = ''; year = ''; province = '';
+  selectedPolTypeId: number | null = null;
+  selectedInsurer = '';
+  resultSort: 'prem' | 'sum_desc' = 'prem';
   detectedProvince = signal<string>('');         // value ของจังหวัดลูกค้า (เดาจาก IP) → tile แรก
 
   loading = signal(false);
@@ -109,7 +114,8 @@ export class Quote implements OnInit {
 
   onBrandChange(): void {
     this.model = this.year = '';
-    this.models.set([]); this.years.set([]); this.error.set('');
+    this.models.set([]); this.years.set([]); this.polTypes.set([]); this.packages.set([]); this.error.set('');
+    this.selectedPolTypeId = null; this.selectedInsurer = '';
     if (this.brand) {
       this.facet.models(this.brand).subscribe({
         next: (m) => this.models.set(m),
@@ -119,7 +125,8 @@ export class Quote implements OnInit {
     }
   }
   onModelChange(): void {
-    this.year = ''; this.years.set([]); this.error.set('');
+    this.year = ''; this.years.set([]); this.polTypes.set([]); this.packages.set([]); this.error.set('');
+    this.selectedPolTypeId = null; this.selectedInsurer = '';
     if (this.model) {
       // ตัด step CC ออก → ส่ง cc ว่าง = ปีรวมทุกขนาดเครื่อง (AI สโคป CC ทีหลังถ้าต้องการ)
       this.facet.years(this.brand, this.model, '').subscribe({
@@ -130,7 +137,19 @@ export class Quote implements OnInit {
     }
   }
   onYearChange(): void {
-    if (this.year) this.scrollToStep('step-province');   // เลือกปีแล้ว → เลื่อนไปการ์ดจังหวัด
+    this.polTypes.set([]); this.packages.set([]); this.selectedPolTypeId = null; this.selectedInsurer = '';
+    if (!this.year) return;
+    this.facet.polTypes(this.brand, this.model, this.cc, +this.year).subscribe({
+      next: (types) => this.polTypes.set(types),
+      error: () => this.polTypes.set([])
+    });
+    this.scrollToStep('step-type');
+  }
+
+  selectPolType(id: number | null): void {
+    this.selectedPolTypeId = id;
+    this.packages.set([]); this.selectedInsurer = '';
+    this.scrollToStep('step-province');
   }
 
   /** เลื่อนการ์ด step ถัดไปเข้ามาในจอแบบนุ่ม (เผื่อ DOM/รายการ async ด้วย setTimeout) */
@@ -195,6 +214,25 @@ export class Quote implements OnInit {
 
   get canSearch(): boolean { return !!(this.brand && this.model && this.year); }
 
+  /** รายชื่อบริษัทที่มีอยู่จริงสำหรับรถและชั้นที่ค้นหาเท่านั้น */
+  get insurers(): string[] {
+    return [...new Set(this.packages().map((p) => p.insurerName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+  }
+
+  insurerCount(insurer: string): number {
+    return this.packages().filter((p) => p.insurerName === insurer).length;
+  }
+
+  /** กรอง/เรียงด้าน client เพื่อเปลี่ยนบริษัทได้ทันที โดยไม่ค้นฐานข้อมูลซ้ำ */
+  get visiblePackages(): PackageRow[] {
+    const rows = this.selectedInsurer
+      ? this.packages().filter((p) => p.insurerName === this.selectedInsurer)
+      : [...this.packages()];
+    return this.resultSort === 'sum_desc'
+      ? rows.sort((a, b) => b.sumInsureMax - a.sumInsureMax || a.premStm - b.premStm)
+      : rows.sort((a, b) => a.premStm - b.premStm);
+  }
+
   /** แนบเอกสารรถ → สกัด → ส่งผลเข้าแชต (ฟิลด์ที่ขาด แชตถามเอง); ล้มเหลว → อยู่หน้านี้ โชว์ error */
   onDocSelected(ev: Event): void {
     const input = ev.target as HTMLInputElement;
@@ -249,7 +287,10 @@ export class Quote implements OnInit {
   search(): void {
     if (!this.canSearch || this.loading()) return;
     this.loading.set(true); this.error.set('');
-    this.facet.search({ brand: this.brand, model: this.model, cc: this.cc, year: +this.year, sort: 'prem' })
+    this.facet.search({
+      brand: this.brand, model: this.model, cc: this.cc, year: +this.year,
+      polTypeId: this.selectedPolTypeId, sort: this.resultSort
+    })
       .subscribe({
         next: (rows) => {
           this.loading.set(false);
@@ -257,14 +298,29 @@ export class Quote implements OnInit {
             this.error.set('ไม่พบแผนประกันสำหรับรถคันนี้ ลองปรับปี/รุ่น/CC อีกครั้งค่ะ');
             return;
           }
-          const provLabel = this.provinces().find((p) => p.value === this.province)?.label ?? '';
-          this.handoff.set({
-            candidates: rows, brand: this.brand, model: this.model, cc: this.cc, year: +this.year,
-            province: this.province, provinceLabel: provLabel
-          });
-          this.router.navigate(['/chat']);
+          this.selectedInsurer = '';
+          this.packages.set(rows);
+          this.scrollToStep('results');
         },
         error: () => { this.loading.set(false); this.error.set('ค้นหาไม่สำเร็จ โปรดลองใหม่'); }
       });
+  }
+
+  /** ส่งเฉพาะแผนที่ลูกค้าเลือกเข้าแชต เพื่อให้ใบเสนอราคาตรงกับตัวเลือก */
+  choosePackage(pkg: PackageRow): void { this.openChat([pkg]); }
+
+  /** ส่งรายการที่กรองแล้วให้ AI ช่วยเปรียบเทียบต่อ โดยไม่แอบนำแผนอื่นมาปน */
+  consultOnVisiblePackages(): void {
+    const rows = this.visiblePackages;
+    if (rows.length) this.openChat(rows);
+  }
+
+  private openChat(candidates: PackageRow[]): void {
+    const provLabel = this.provinces().find((p) => p.value === this.province)?.label ?? '';
+    this.handoff.set({
+      candidates, brand: this.brand, model: this.model, cc: this.cc, year: +this.year,
+      province: this.province, provinceLabel: provLabel
+    });
+    this.router.navigate(['/chat']);
   }
 }
