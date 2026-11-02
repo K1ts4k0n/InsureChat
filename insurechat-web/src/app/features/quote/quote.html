@@ -1,0 +1,163 @@
+<div class="quote-shell">
+  <a class="skip-link" href="#step-brand">ข้ามไปแบบฟอร์ม</a>
+
+  <header class="q-header">
+    <p class="wordmark">InsureChat</p>
+    <nav class="head-actions" aria-label="เมนูหลัก">
+      <a class="nav-link" routerLink="/chat">คุยกับที่ปรึกษา</a>
+      <theme-toggle />
+    </nav>
+  </header>
+
+  <main class="q-body">
+    <header class="q-intro">
+      <h1>ข้อมูลรถยนต์</h1>
+      <p class="sub">กรอกข้อมูลรถ แล้วให้ที่ปรึกษา AI ช่วยเลือกแผนที่ใช่ — ทุนประกัน เบี้ย ไฟไหม้ น้ำท่วม คุยต่อในแชตได้</p>
+    </header>
+
+    <div class="doc-intake">
+      <input #docInput type="file" accept="image/png,image/jpeg,image/webp,application/pdf" hidden (change)="onDocSelected($event)" />
+      <button type="button" class="doc-drop" [class.dragging]="docDragging()" [disabled]="docLoading()"
+              (click)="docInput.click()"
+              (dragover)="onDocDragOver($event)" (dragleave)="onDocDragLeave($event)" (drop)="onDocDrop($event)">
+        <span class="doc-icon" aria-hidden="true">
+          @if (docLoading()) {
+            <span class="doc-spinner"></span>
+          } @else {
+            <svg class="icon" viewBox="0 0 24 24">
+              <path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8L14 3.5Z" />
+              <path d="M14 3.5V8h4.5M9 13h6M9 16.5h4" />
+            </svg>
+          }
+        </span>
+        <span class="doc-text">
+          <span class="doc-title">
+            {{ docLoading() ? 'กำลังอ่านเอกสาร…' : 'อัปโหลดตารางกรมธรรม์ หรือ สำเนาทะเบียนรถ' }}
+          </span>
+          <span class="doc-hint">
+            {{ docLoading() ? 'กรุณารอสักครู่ ระบบกำลังดึงข้อมูลรถจากเอกสาร' : 'ลากไฟล์มาวาง หรือคลิกเพื่อเลือก — ระบบจะกรอกข้อมูลรถให้อัตโนมัติ' }}
+          </span>
+          <span class="doc-formats">รองรับ JPG · PNG · WEBP · PDF</span>
+        </span>
+      </button>
+    </div>
+
+    @if (error()) {
+      <div class="error" role="alert">
+        <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+          <circle cx="10" cy="10" r="7.5" />
+          <path d="M10 6.5v4M10 13.6v.01" />
+        </svg>
+        <span class="error-text">{{ error() }}</span>
+        @if (brands().length === 0) {
+          <button type="button" class="retry-btn" (click)="loadBrands()">ลองใหม่</button>
+        }
+      </div>
+    }
+
+    <div class="steps">
+      <!-- 1) ยี่ห้อ — tile ยอดนิยม + dropdown ครบ -->
+      <section class="step-card" id="step-brand">
+        <h2 class="step-title">เลือกยี่ห้อรถ</h2>
+        <div class="tiles">
+          @for (b of brandTiles; track b.value) {
+            <button type="button" class="tile brand-tile" [class.active]="brand === b.value"
+                    [attr.aria-pressed]="brand === b.value" (click)="selectBrand(b.value)">
+              <img class="tile-logo" [src]="brandLogo(b.value)" [alt]="b.label"
+                   loading="lazy" (error)="onLogoError($event)" />
+              <span class="tile-label">{{ b.label }}</span>
+            </button>
+          }
+        </div>
+        @if (brands().length > brandTiles.length) {
+          <p class="tile-hint">ไม่เจอยี่ห้อที่ต้องการ? เลือกจากช่องด้านล่าง</p>
+        }
+        <label class="select-field">
+          <span class="sr-only">เลือกยี่ห้อรถจากรายการทั้งหมด</span>
+          <select class="step-select" [(ngModel)]="brand" (change)="onBrandChange()">
+            <option value="">— เลือกยี่ห้อ —</option>
+            @for (b of brands(); track b.value) { <option [value]="b.value">{{ b.label }}</option> }
+          </select>
+        </label>
+      </section>
+
+      <!-- 2) รุ่น -->
+      <section class="step-card" id="step-model">
+        <h2 class="step-title">เลือกรุ่นรถ</h2>
+        @if (!brand) {
+          <p class="tile-empty">เลือกยี่ห้อรถก่อน</p>
+        } @else {
+          <div class="tiles">
+            @for (m of modelTiles; track m.value) {
+              <button type="button" class="tile" [class.active]="model === m.value"
+                      [attr.aria-pressed]="model === m.value" (click)="selectModel(m.value)">{{ m.label }}</button>
+            }
+          </div>
+          @if (models().length > modelTiles.length) {
+            <p class="tile-hint">ไม่เจอรุ่นที่ต้องการ? เลือกจากช่องด้านล่าง ({{ models().length }} รุ่น)</p>
+          }
+          <label class="select-field">
+            <span class="sr-only">เลือกรุ่นรถจากรายการทั้งหมด</span>
+            <select class="step-select" [(ngModel)]="model" (change)="onModelChange()">
+              <option value="">— เลือกรุ่น —</option>
+              @for (m of models(); track m.value) { <option [value]="m.value">{{ m.label }}</option> }
+            </select>
+          </label>
+        }
+      </section>
+
+      <!-- 3) ปีรถยนต์ (ตัด step CC ออก — ปีรวมทุกขนาดเครื่อง, AI สโคป CC ทีหลัง) -->
+      <section class="step-card" id="step-year">
+        <h2 class="step-title">เลือกปีรถยนต์</h2>
+        @if (!model) {
+          <p class="tile-empty">เลือกรุ่นรถก่อน</p>
+        } @else {
+          <div class="tiles tiles-compact">
+            @for (y of years(); track y.value) {
+              <button type="button" class="tile" [class.active]="year === y.value"
+                      [attr.aria-pressed]="year === y.value" (click)="selectYear(y.value)">{{ y.label }}</button>
+            }
+          </div>
+          <label class="select-field">
+            <span class="sr-only">เลือกปีรถยนต์จากรายการทั้งหมด</span>
+            <select class="step-select" [(ngModel)]="year" (change)="onYearChange()">
+              <option value="">— เลือกปี —</option>
+              @for (y of years(); track y.value) { <option [value]="y.value">{{ y.label }}</option> }
+            </select>
+          </label>
+        }
+      </section>
+
+      <!-- 4) จังหวัดจดทะเบียน (ADR 0005 — เก็บลง proposal, ไม่กรองผลค้น/เบี้ย) -->
+      <section class="step-card" id="step-province">
+        <h2 class="step-title">เลือกจังหวัดที่จดทะเบียนรถ</h2>
+        @if (!year) {
+          <p class="tile-empty">เลือกปีรถยนต์ก่อน</p>
+        } @else if (provinces().length === 0) {
+          <p class="tile-empty">กำลังโหลดจังหวัด…</p>
+        } @else {
+          <div class="tiles">
+            @for (p of provinceTiles; track p.value) {
+              <button type="button" class="tile" [class.active]="province === p.value"
+                      [attr.aria-pressed]="province === p.value" (click)="selectProvince(p.value)">{{ p.label }}</button>
+            }
+          </div>
+          @if (provinces().length > provinceTiles.length) {
+            <p class="tile-hint">ไม่เจอจังหวัด? เลือกจากช่องด้านล่าง ({{ provinces().length }} จังหวัด)</p>
+          }
+          <label class="select-field">
+            <span class="sr-only">เลือกจังหวัดจากรายการทั้งหมด</span>
+            <select class="step-select" [(ngModel)]="province" (change)="onProvinceChange()">
+              <option value="">— เลือกจังหวัด —</option>
+              @for (p of provinces(); track p.value) { <option [value]="p.value">{{ p.label }}</option> }
+            </select>
+          </label>
+        }
+      </section>
+    </div>
+
+    <button id="search-row" class="search-btn" (click)="search()" [disabled]="!canSearch || loading()">
+      {{ loading() ? 'กำลังค้นหา…' : 'ค้นหาเบี้ยประกัน แล้วคุยกับที่ปรึกษา' }}
+    </button>
+  </main>
+</div>

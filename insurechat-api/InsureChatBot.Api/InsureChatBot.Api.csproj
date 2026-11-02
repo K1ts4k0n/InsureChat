@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>InsureChatBot.Api</RootNamespace>
+    <!-- shared hosting จับหลายเว็บไว้ใน app pool เดียว → in-process (1 แอป/pool) ใช้ไม่ได้
+         ต้อง out-of-process เพื่ออยู่ร่วม pool กับเว็บอื่น (กัน HTTP 500.34) -->
+    <AspNetCoreHostingModel>OutOfProcess</AspNetCoreHostingModel>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="2.1.79" />
+    <PackageReference Include="MailKit" Version="4.17.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.2" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="PDFtoImage" Version="5.2.1" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Data\users.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- app-settings.json = runtime state (admin แก้ผ่าน UI) — ห้าม deploy ทับของจริงบน server
+         (กันค่าทดสอบจาก dev หลุดขึ้น production เหมือนเคส gpt-test / sk-secret-9999wxyz) -->
+    <Content Remove="Data\app-settings.json" />
+    <None Remove="Data\app-settings.json" />
+    <!-- .env (secrets) อยู่ที่ insurechat-api root — auto-copy เข้า publish เพื่อไม่ต้องก็อปเองทุกครั้ง
+         (ถ้าลืม → แอปต่อ DB/LLM/อีเมลไม่ได้ บนเซิร์ฟเวอร์) -->
+    <None Include="$(MSBuildProjectDirectory)\..\.env" Link=".env" Condition="Exists('$(MSBuildProjectDirectory)\..\.env')">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ไฟล์ความรู้ (markdown, ไม่มี PII) ที่ bundle มา — อ่านตอน runtime โดย
+         SystemPromptProvider + KnowledgeSyncService (ADR 0017). source of truth ยังเป็น wiki ใน vault -->
+    <None Include="Knowledge\**\*.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

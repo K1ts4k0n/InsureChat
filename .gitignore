@@ -1,0 +1,51 @@
+# Secrets & Environment variables
+.env
+.env.*
+*.env
+*.env.local
+!*.env.example
+
+# App data & SQLite databases
+**/App_Data/
+*.db
+*.db-shm
+*.db-wal
+**/insurechat.db*
+
+# Sensitive admin settings
+**/Data/app-settings.json
+
+# .NET build artifacts
+**/bin/
+**/obj/
+**/.vs/
+*.user
+**/publish/
+**/publish-server/
+**/publish-win/
+
+# Node & Frontend build
+**/node_modules/
+**/.angular/
+**/dist/
+**/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Vault raw heavy data
+**/raw/
+
+# Logs & Temporary files
+*.log
+*.tmp
+scratch/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

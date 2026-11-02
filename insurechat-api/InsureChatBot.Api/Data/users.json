@@ -1,0 +1,10 @@
+[
+  {
+    "Username": "admin",
+    "PasswordHash": "100000.51khlCdag83lnVYhi8PSGQ==.NBrtrH+2eUFeCX5UcbNuXQNIQ1sHh/7gu0gdE/JfPVo=",
+    "Role": "admin",
+    "CustCode": "ADMIN001",
+    "Name": "ผู้ดูแลระบบ",
+    "Email": "admin@insurechat.local"
+  }
+]

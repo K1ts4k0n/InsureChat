@@ -1,0 +1,20 @@
+# secrets
+.env
+*.env.local
+# admin runtime settings (มี key) — ห้าม commit
+InsureChatBot.Api/Data/app-settings.json
+# .NET build
+[Bb]in/
+[Oo]bj/
+.vs/
+*.user
+InsureChatBot.Api/publish/
+# logs
+*.log
+# OS/editor
+Thumbs.db
+.DS_Store
+
+# artifact ของ dotnet publish (มี .env จริงอยู่ข้างใน — ห้าม track)
+publish-server/
+publish-win/

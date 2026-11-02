@@ -1,0 +1,522 @@
+<div class="admin-shell">
+  <a class="skip-link" href="#admin-main">ข้ามไปเนื้อหาหลัก</a>
+
+  <header class="a-header">
+    <p class="brand"><span class="wordmark">InsureChat</span> <span class="tag">หลังบ้าน</span></p>
+    <div class="who">
+      <span class="name">{{ adminName }}</span>
+      <theme-toggle />
+      <button class="logout" (click)="logout()">ออกจากระบบ</button>
+    </div>
+  </header>
+
+  <nav class="tabs" aria-label="หมวดการตั้งค่า">
+    <button [class.active]="tab() === 'prompt'" [attr.aria-current]="tab() === 'prompt' ? 'page' : null" (click)="setTab('prompt')">คำสั่ง AI</button>
+    <button [class.active]="tab() === 'llm'" [attr.aria-current]="tab() === 'llm' ? 'page' : null" (click)="setTab('llm')">การเชื่อมต่อ LLM</button>
+    <button [class.active]="tab() === 'theme'" [attr.aria-current]="tab() === 'theme' ? 'page' : null" (click)="setTab('theme')">ธีมสี</button>
+    <button [class.active]="tab() === 'email'" [attr.aria-current]="tab() === 'email' ? 'page' : null" (click)="setTab('email')">อีเมลคำสั่งซื้อ</button>
+    <button [class.active]="tab() === 'conversations'" [attr.aria-current]="tab() === 'conversations' ? 'page' : null" (click)="setTab('conversations')">บทสนทนา</button>
+    <button [class.active]="tab() === 'orders'" [attr.aria-current]="tab() === 'orders' ? 'page' : null" (click)="setTab('orders')">คำสั่งซื้อ</button>
+    <button [class.active]="tab() === 'knowledge'" [attr.aria-current]="tab() === 'knowledge' ? 'page' : null" (click)="setTab('knowledge')">คลังความรู้</button>
+  </nav>
+
+  <main class="a-body" id="admin-main" [class.wide]="isWideTab()">
+    <!-- ── System prompt (4 ช่องแก้ได้รายช่อง + locked preview, ADR 0014) ── -->
+    @if (tab() === 'prompt') {
+      <p class="hint tab-intro">
+        system prompt ที่ป้อนให้ AI = <strong>4 ช่องด้านล่าง (แก้ได้)</strong> +
+        ส่วนที่ <strong>ล็อกในโค้ด</strong> (ความรู้จากวิกิ + กลไกระบบ). แต่ละช่องบันทึก/รีเซ็ตแยกกัน มีผลแชตรอบถัดไป
+      </p>
+
+      @for (sec of promptSections(); track sec.key) {
+        <section class="card prompt-card" [class.sensitive]="sec.sensitive">
+          <h2>
+            {{ sec.title }}
+            @if (sec.isCustom) { <span class="badge">กำหนดเอง</span> }
+            @else { <span class="badge muted">ค่าตั้งต้น</span> }
+          </h2>
+          <p class="hint">{{ sec.hint }}</p>
+
+          @if (sec.sensitive) {
+            <p class="warn-box">
+              <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M10 3.4 2.9 15.6a.9.9 0 0 0 .8 1.4h12.6a.9.9 0 0 0 .8-1.4L10 3.4Z" />
+                <path d="M10 8v3.2M10 14.1v.01" />
+              </svg>
+              <span>กฎนี้คุมจรรยาบรรณ — ถ้าลบ "ห้ามแต่งเบี้ย" บอทอาจสร้างเลขเบี้ยขึ้นเอง (ระบบยัง ground ราคาจากผลค้นจริงเป็นชั้นกันสุดท้าย)</span>
+            </p>
+          }
+
+          <textarea [(ngModel)]="sec.value" rows="12" spellcheck="false"></textarea>
+          <div class="row">
+            <button class="primary" (click)="savePromptSection(sec)" [disabled]="promptSavingKey() === sec.key">
+              {{ promptSavingKey() === sec.key ? 'กำลังบันทึก...' : 'บันทึกช่องนี้' }}
+            </button>
+            <button class="ghost" (click)="resetPromptSection(sec)" [disabled]="!sec.isCustom">รีเซ็ตช่องนี้</button>
+            @if (msgFor(sec.key)) { <span class="msg">{{ msgFor(sec.key) }}</span> }
+          </div>
+        </section>
+      }
+
+      <!-- ส่วนล็อก read-only (knowledge วิกิ + กลไก sentinel/tool) -->
+      <section class="card locked-card">
+        <h2 class="locked-title">
+          <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M5.5 8.8h9a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z" />
+            <path d="M7.3 8.8V6.6a2.7 2.7 0 0 1 5.4 0v2.2" />
+          </svg>
+          <span>ส่วนที่ล็อก (แก้ไม่ได้)</span>
+        </h2>
+        <p class="hint">
+          ความรู้จากวิกิ (auto จาก 6 ไฟล์) + กลไก <code>[BUBBLE]</code> / <code>[SUGGEST]</code> /
+          <code>coverageInSet</code> / การเรียก tool — ผูกกับระบบ แก้แล้ว parser/แชตพัง จึงล็อกในโค้ด.
+          แสดงไว้ให้เห็น system prompt เต็มที่ส่งให้ AI จริง
+        </p>
+        <button class="ghost" (click)="showLocked.set(!showLocked())">
+          {{ showLocked() ? 'ซ่อน' : 'ดูเนื้อหาส่วนที่ล็อก' }}
+        </button>
+        @if (showLocked()) {
+          <pre class="locked-pre">{{ lockedPreview() }}</pre>
+        }
+      </section>
+    }
+
+    <!-- ── LLM ─────────────────────────────────────────────── -->
+    @if (tab() === 'llm') {
+      <section class="card">
+        <h2>การเชื่อมต่อ LLM</h2>
+        <p class="hint">ตั้งค่าผู้ให้บริการ/โมเดล — มีผลในแชตรอบถัดไปทันที (ไม่ต้อง restart)</p>
+
+        <label class="check">
+          <input type="checkbox" [(ngModel)]="llmEnabled" />
+          <span>เปิดใช้งาน LLM (ปิด = ใช้ state machine สำรอง)</span>
+        </label>
+
+        <label><span>Base URL</span>
+          <input type="text" [(ngModel)]="llmBaseUrl" placeholder="https://openrouter.ai/api/v1" />
+        </label>
+        <label><span>Model</span>
+          <input type="text" [(ngModel)]="llmModel" placeholder="openai/gpt-oss-120b:free" />
+        </label>
+
+        <div class="grid3">
+          <label><span>Temperature</span>
+            <input type="number" step="0.1" min="0" max="2" [(ngModel)]="llmTemp" />
+          </label>
+          <label><span>Max tokens</span>
+            <input type="number" min="1" [(ngModel)]="llmMaxTokens" />
+          </label>
+          <label><span>Timeout (วินาที)</span>
+            <input type="number" min="1" [(ngModel)]="llmTimeout" />
+          </label>
+        </div>
+
+        <div class="keybox">
+          <div class="keystate">
+            <span>API key ปัจจุบัน:</span>
+            <code>{{ apiKeyMasked() || '—' }}</code>
+            <span class="src">({{ keySourceLabel() }})</span>
+          </div>
+          <label><span>ตั้ง / เปลี่ยน API key (เว้นว่าง = ไม่เปลี่ยน)</span>
+            <input type="password" [(ngModel)]="newApiKey" placeholder="วาง key ใหม่ที่นี่" autocomplete="off" />
+          </label>
+          <button class="ghost danger" (click)="clearKey()">ล้าง key (กลับไปใช้ environment)</button>
+        </div>
+
+        <div class="row">
+          <button class="primary" (click)="saveLlm()" [disabled]="llmSaving()">
+            {{ llmSaving() ? 'กำลังบันทึก...' : 'บันทึก' }}
+          </button>
+          @if (llmMsg()) { <span class="msg">{{ llmMsg() }}</span> }
+        </div>
+      </section>
+    }
+
+    <!-- ── Theme ───────────────────────────────────────────── -->
+    @if (tab() === 'theme') {
+      <section class="card">
+        <h2>ธีมสีแบรนด์ (ทั้งระบบ)</h2>
+        <p class="hint">สีนี้มีผลกับทุกหน้า — โหลดรอบถัดไปของผู้ใช้คนอื่น (พรีวิวสดด้านล่าง)</p>
+
+        <div class="presets">
+          @for (p of presets; track p) {
+            <button class="swatch" [style.background]="p" [class.sel]="brand.toLowerCase() === p"
+                    (click)="pickPreset(p)" [attr.aria-label]="p"></button>
+          }
+        </div>
+
+        <div class="brand-pick">
+          <input type="color" [(ngModel)]="brand" (ngModelChange)="onBrandInput()" />
+          <input type="text" class="hex" [(ngModel)]="brand" (ngModelChange)="onBrandInput()" maxlength="7" />
+          <button class="primary preview-btn">ตัวอย่างปุ่ม</button>
+        </div>
+
+        <div class="row">
+          <button class="primary" (click)="saveTheme()" [disabled]="themeSaving()">
+            {{ themeSaving() ? 'กำลังบันทึก...' : 'บันทึกสีแบรนด์' }}
+          </button>
+          @if (themeMsg()) { <span class="msg">{{ themeMsg() }}</span> }
+        </div>
+      </section>
+    }
+
+    <!-- ── Email (การส่งคำสั่งซื้อ) ─────────────────────────── -->
+    @if (tab() === 'email') {
+      <section class="card">
+        <h2>การส่งอีเมลคำสั่งซื้อ</h2>
+        <p class="hint">
+          เมื่อลูกค้ากด "ส่งคำสั่งซื้อ" ระบบจะส่งอีเมลจาก<strong>บัญชีผู้ส่ง</strong>ไปยัง<strong>อีเมลปลายทาง</strong> (โบรคเกอร์)
+          — มีผลกับคำสั่งซื้อรอบถัดไปทันที. รองรับ Gmail + App Password เท่านั้น
+        </p>
+
+        <label><span>อีเมลผู้ส่ง (Gmail)</span>
+          <input type="email" [(ngModel)]="emailSender" placeholder="clickto.helper@gmail.com" autocomplete="off" />
+        </label>
+        <p class="sub">ชื่อผู้ส่ง (From) ของอีเมลจะเป็นอีเมลนี้เสมอ — Gmail ไม่อนุญาตให้ส่งจากคนละบัญชี</p>
+
+        <label><span>อีเมลปลายทาง (โบรคเกอร์)</span>
+          <input type="email" [(ngModel)]="emailRecipient" placeholder="broker@example.com" autocomplete="off" />
+        </label>
+
+        <div class="keybox">
+          <div class="keystate">
+            <span>App Password ปัจจุบัน:</span>
+            <code>{{ emailPasswordMasked() || '—' }}</code>
+            <span class="src">({{ emailPasswordSourceLabel() }})</span>
+          </div>
+          <label><span>ตั้ง / เปลี่ยน App Password (เว้นว่าง = ไม่เปลี่ยน)</span>
+            <input type="password" [(ngModel)]="newEmailPassword" placeholder="วาง Gmail App Password (16 หลัก)" autocomplete="off" />
+          </label>
+          <button class="ghost danger" (click)="clearEmailPassword()">ล้าง App Password (กลับไปใช้ environment)</button>
+        </div>
+
+        <div class="row">
+          <button class="primary" (click)="saveEmail()" [disabled]="emailSaving()">
+            {{ emailSaving() ? 'กำลังบันทึก...' : 'บันทึก' }}
+          </button>
+          <button class="ghost" (click)="testEmail()" [disabled]="emailTesting()">
+            {{ emailTesting() ? 'กำลังส่ง...' : 'ส่งอีเมลทดสอบ' }}
+          </button>
+          @if (emailMsg()) { <span class="msg" [class.err]="emailMsgErr()">{{ emailMsg() }}</span> }
+        </div>
+        <p class="sub">ปุ่มทดสอบส่งด้วยค่าที่บันทึกล่าสุด — ถ้าเพิ่งแก้ กดบันทึกก่อน</p>
+      </section>
+    }
+    <!-- ── Conversations ─────────────────────────────────── -->
+    @if (tab() === 'conversations') {
+      <section class="card data-section">
+        <div class="data-header">
+          <h2>บทสนทนา</h2>
+          <div class="search-row">
+            <input type="text" [(ngModel)]="convoSearch" placeholder="ค้นหาชื่อ / รถ / เบอร์..."
+                   (keyup.enter)="searchConversations()" />
+            <button class="primary" (click)="searchConversations()">ค้นหา</button>
+          </div>
+        </div>
+
+        @if (convoError()) {
+          <div class="msg err data-msg">
+            {{ convoError() }}
+            <button class="ghost retry-btn" (click)="loadConversations()">ลองอีกครั้ง</button>
+          </div>
+        }
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ชื่อ</th>
+                <th>เบอร์โทร</th>
+                <th>รถ</th>
+                <th>ผลลัพธ์</th>
+                <th class="mono-col">เทิร์น</th>
+                <th class="mono-col">อัปเดต</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (convoLoading()) {
+                @for (i of [1,2,3,4,5]; track i) {
+                  <tr class="skel-row">
+                    <td><span class="skel"></span></td>
+                    <td><span class="skel skel-sm"></span></td>
+                    <td><span class="skel skel-md"></span></td>
+                    <td><span class="skel skel-xs"></span></td>
+                    <td><span class="skel skel-xs"></span></td>
+                    <td><span class="skel skel-md"></span></td>
+                  </tr>
+                }
+              } @else if (!convoError() && conversations().length === 0) {
+                <tr>
+                  <td colspan="6">
+                    <div class="empty-state">
+                      <div class="empty-title">ยังไม่มีบทสนทนา</div>
+                      <div class="empty-sub">จะปรากฏเมื่อมีผู้ใช้คุยกับแชตบอต</div>
+                    </div>
+                  </td>
+                </tr>
+              } @else {
+                @for (c of conversations(); track c.id) {
+                  <tr class="clickable-row" (click)="openConversation(c.id)">
+                    <td>{{ c.prospectName || '—' }}</td>
+                    <td class="mono-cell">{{ c.prospectPhone || '—' }}</td>
+                    <td>{{ c.carBrand }} {{ c.carModel }}{{ c.carYear ? ' ' + c.carYear : '' }}</td>
+                    <td>
+                      <span class="status-chip" [class]="'status-' + c.outcomeStatus">
+                        {{ c.outcomeStatus === 'ordered' ? 'สั่งซื้อแล้ว' : 'กำลังคุย' }}
+                      </span>
+                    </td>
+                    <td class="mono-cell">{{ c.turnCount }}</td>
+                    <td class="mono-cell">{{ formatDate(c.lastUpdatedAt) }}</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+
+    <!-- ── Orders ─────────────────────────────────────────── -->
+    @if (tab() === 'orders') {
+      <section class="card data-section">
+        <div class="data-header">
+          <h2>คำสั่งซื้อ</h2>
+          <button class="ghost" (click)="loadOrders()">รีเฟรช</button>
+        </div>
+
+        @if (ordersError()) {
+          <div class="msg err data-msg">
+            {{ ordersError() }}
+            <button class="ghost retry-btn" (click)="loadOrders()">ลองอีกครั้ง</button>
+          </div>
+        }
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th class="mono-col">เลขที่</th>
+                <th>ชื่อลูกค้า</th>
+                <th class="mono-col">เบอร์โทร</th>
+                <th>รถ</th>
+                <th>บริษัทประกัน</th>
+                <th class="mono-col num-col">ยอดรวม (บาท)</th>
+                <th>สถานะ</th>
+                <th>อีเมล</th>
+                <th class="mono-col">วันที่สั่ง</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (ordersLoading()) {
+                @for (i of [1,2,3,4,5]; track i) {
+                  <tr class="skel-row">
+                    <td><span class="skel skel-sm"></span></td>
+                    <td><span class="skel"></span></td>
+                    <td><span class="skel skel-sm"></span></td>
+                    <td><span class="skel skel-md"></span></td>
+                    <td><span class="skel skel-md"></span></td>
+                    <td><span class="skel skel-xs"></span></td>
+                    <td><span class="skel skel-xs"></span></td>
+                    <td><span class="skel skel-xs"></span></td>
+                    <td><span class="skel skel-md"></span></td>
+                  </tr>
+                }
+              } @else if (!ordersError() && orders().length === 0) {
+                <tr>
+                  <td colspan="9">
+                    <div class="empty-state">
+                      <div class="empty-title">ยังไม่มีคำสั่งซื้อ</div>
+                      <div class="empty-sub">จะปรากฏเมื่อลูกค้ากด "ส่งคำสั่งซื้อ" ในแชตบอต</div>
+                    </div>
+                  </td>
+                </tr>
+              } @else {
+                @for (o of orders(); track o.id) {
+                  <tr>
+                    <td class="mono-cell">{{ o.orderNo }}</td>
+                    <td>{{ o.custName }}</td>
+                    <td class="mono-cell">{{ o.custPhone }}</td>
+                    <td>{{ o.brand }} {{ o.model }}</td>
+                    <td>{{ o.insurerName }}</td>
+                    <td class="mono-cell num-cell">{{ formatMoney(o.total) }}</td>
+                    <td>
+                      <span class="status-chip" [class]="'status-' + o.status">{{ o.status }}</span>
+                    </td>
+                    <td>
+                      <span class="status-chip" [class]="'email-' + o.emailStatus">{{ o.emailStatus }}</span>
+                    </td>
+                    <td class="mono-cell">{{ formatDate(o.createdAt) }}</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+
+    <!-- ── Knowledge ──────────────────────────────────────── -->
+    @if (tab() === 'knowledge') {
+      <section class="card data-section">
+        <div class="data-header">
+          <h2>คลังความรู้</h2>
+          <div class="sync-row">
+            @if (syncMsg()) {
+              <span class="msg" [class.err]="syncMsgErr()">{{ syncMsg() }}</span>
+            }
+            <button class="primary" (click)="syncKnowledge()" [disabled]="syncing()">
+              {{ syncing() ? 'กำลังซิงก์...' : 'ซิงก์จากไฟล์' }}
+            </button>
+          </div>
+        </div>
+
+        @if (knowledgeError()) {
+          <div class="msg err data-msg">
+            {{ knowledgeError() }}
+            <button class="ghost retry-btn" (click)="loadKnowledge()">ลองอีกครั้ง</button>
+          </div>
+        }
+
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ชื่อบทความ</th>
+                <th>ประเภท</th>
+                <th>ป้อนให้ AI</th>
+                <th class="mono-col">อัปเดต</th>
+              </tr>
+            </thead>
+            <tbody>
+              @if (knowledgeLoading()) {
+                @for (i of [1,2,3,4,5]; track i) {
+                  <tr class="skel-row">
+                    <td><span class="skel"></span></td>
+                    <td><span class="skel skel-xs"></span></td>
+                    <td><span class="skel skel-xs"></span></td>
+                    <td><span class="skel skel-md"></span></td>
+                  </tr>
+                }
+              } @else if (!knowledgeError() && knowledgeItems().length === 0) {
+                <tr>
+                  <td colspan="4">
+                    <div class="empty-state">
+                      <div class="empty-title">ยังไม่มีบทความในคลัง</div>
+                      <div class="empty-sub">กด "ซิงก์จากไฟล์" ด้านบนเพื่อนำเข้าความรู้จากวิกิ</div>
+                    </div>
+                  </td>
+                </tr>
+              } @else {
+                @for (k of knowledgeItems(); track k.slug) {
+                  <tr class="clickable-row" (click)="openArticle(k.slug)">
+                    <td>{{ k.title }}</td>
+                    <td><span class="badge muted">{{ k.type }}</span></td>
+                    <td>
+                      @if (k.isInjected) {
+                        <span class="badge">ป้อนให้ AI</span>
+                      } @else {
+                        <span class="badge muted">ไม่ได้ใช้</span>
+                      }
+                    </td>
+                    <td class="mono-cell">{{ formatDate(k.updatedAt) }}</td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  </main>
+
+  <!-- ── Transcript modal ───────────────────────────────────── -->
+  @if (selectedConvo() || convoDetailLoading()) {
+    <div class="modal-backdrop" (click)="closeConversation()">
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-label="บทสนทนาเต็ม"
+           (click)="$event.stopPropagation()">
+        @if (convoDetailLoading()) {
+          <p class="modal-loading">กำลังโหลด…</p>
+        }
+        @if (selectedConvo(); as c) {
+          <div class="modal-header">
+            <div class="modal-meta">
+              <div class="modal-title">{{ c.carBrand }} {{ c.carModel }}{{ c.carYear ? ' ' + c.carYear : '' }}</div>
+              <div class="modal-sub">
+                {{ c.prospectName || '—' }}
+                @if (c.prospectPhone) { <span class="mono-cell">{{ c.prospectPhone }}</span> }
+                <span class="status-chip" [class]="'status-' + c.outcomeStatus">
+                  {{ c.outcomeStatus === 'ordered' ? 'สั่งซื้อแล้ว' : 'กำลังคุย' }}
+                </span>
+              </div>
+              @if (c.needs && c.needs.length > 0) {
+                <div class="needs-row">
+                  @for (n of c.needs; track n) {
+                    <span class="badge muted">{{ n }}</span>
+                  }
+                </div>
+              }
+            </div>
+            <button class="modal-close" (click)="closeConversation()" aria-label="ปิด">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <line x1="2" y1="2" x2="16" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="16" y1="2" x2="2" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="transcript">
+            @for (turn of c.turns; track turn.seq) {
+              <div class="bubble-wrap" [class.user-side]="turn.role === 'user'">
+                <div class="bubble" [class.bubble-user]="turn.role === 'user'" [class.bubble-assistant]="turn.role === 'assistant'">
+                  @if (turn.role === 'assistant') {
+                    <div class="bubble-text" [innerHTML]="renderMarkdown(turn.text)"></div>
+                  } @else {
+                    <div class="bubble-text">{{ turn.text }}</div>
+                  }
+                  <div class="bubble-meta">
+                    <span class="bubble-role">{{ turn.role === 'user' ? 'ผู้ใช้' : 'บอท' }}</span>
+                    <span class="mono-cell bubble-time">{{ formatDate(turn.timestamp) }}</span>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Article modal ──────────────────────────────────────── -->
+  @if (selectedArticle() || articleLoading()) {
+    <div class="modal-backdrop" (click)="closeArticle()">
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-label="บทความในคลังความรู้"
+           (click)="$event.stopPropagation()">
+        @if (articleLoading()) {
+          <p class="modal-loading">กำลังโหลด…</p>
+        }
+        @if (selectedArticle(); as a) {
+          <div class="modal-header">
+            <div class="modal-meta">
+              <div class="modal-title">{{ a.title }}</div>
+              <div class="modal-sub">
+                <span class="badge muted">{{ a.type }}</span>
+                @if (a.isInjected) {
+                  <span class="badge">ป้อนให้ AI</span>
+                } @else {
+                  <span class="badge muted">ไม่ได้ใช้</span>
+                }
+                <span class="modal-updated">อัปเดต {{ formatDate(a.updatedAt) }}</span>
+              </div>
+            </div>
+            <button class="modal-close" (click)="closeArticle()" aria-label="ปิด">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <line x1="2" y1="2" x2="16" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="16" y1="2" x2="2" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="article-body markdown-body" [innerHTML]="renderMarkdown(a.content)"></div>
+        }
+      </div>
+    </div>
+  }
+</div>

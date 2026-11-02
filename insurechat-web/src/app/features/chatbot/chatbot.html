@@ -1,0 +1,187 @@
+<div class="chat-shell">
+  <a class="skip-link" href="#chat-composer">ข้ามไปช่องพิมพ์ข้อความ</a>
+
+  <header class="chat-header">
+    <p class="wordmark">InsureChat</p>
+    <nav class="head-actions" aria-label="เมนูหลัก">
+      <a class="nav-link" routerLink="/quote">คำนวณเบี้ย</a>
+      <theme-toggle />
+    </nav>
+  </header>
+
+  <main class="chat-body" #chatBody (scroll)="onChatScroll()" aria-live="polite" aria-label="บทสนทนา">
+    @for (m of messages; track $index) {
+      <div class="bubble-row" [class.user]="m.role === 'user'">
+        @if (m.role === 'user') {
+          <div class="bubble user">{{ m.text }}</div>
+        } @else {
+          <div class="bubble md-content" [innerHTML]="renderMarkdown(m.text)"></div>
+        }
+      </div>
+    }
+    <!-- streaming: แตกกล่องตาม [BUBBLE] (ADR 0006) — เคอร์เซอร์กระพริบเฉพาะกล่องท้ายที่ยังไหลอยู่ -->
+    @if (streamingActive()) {
+      @for (b of streamingBubbles(); track $index; let last = $last) {
+        <div class="bubble-row">
+          <div class="bubble md-content" [class.streaming]="last" [innerHTML]="renderMarkdown(b)"></div>
+        </div>
+      }
+    }
+    @if (loading() && !streamingText()) {
+      <div class="bubble-row">
+        <div class="bubble typing">
+          <span class="status-label">{{ statusText() || 'กำลังประมวลผล' }}</span>
+          <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
+        </div>
+      </div>
+    }
+  </main>
+
+  @if (proposalResult()) {
+    <p class="proposal-result" role="status">{{ proposalResult() }}</p>
+  }
+
+  @if (isReadyToPropose() && selectedProposal) {
+    <section class="proposal-card" [class.collapsed]="proposalCollapsed()"
+             aria-label="แพคเกจที่เลือก">
+      <button type="button" class="pc-title" (click)="proposalCollapsed.set(!proposalCollapsed())"
+              [attr.aria-expanded]="!proposalCollapsed()">
+        <span class="pc-title-text">
+          <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M6.5 3.5h7a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-11a1 1 0 0 1 1-1Z" />
+            <path d="M8 7h4M8 10h4M8 13h2.5" />
+          </svg>
+          <span>แพคเกจที่เลือก — ข้อมูลจริงจากระบบ</span>
+        </span>
+        <svg class="icon pc-chevron" viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M5.5 8l4.5 4.5L14.5 8" />
+        </svg>
+      </button>
+      @if (!proposalCollapsed()) {
+        <div class="pc-body">
+          <p class="pc-insurer">{{ selectedProposal.insurerName }}</p>
+          <dl class="pc-rows">
+            <div class="pc-row"><dt>รถ</dt><dd>{{ selectedProposal.brand }} {{ selectedProposal.model }} ปี {{ selectedProposal.year }}</dd></div>
+            <div class="pc-row"><dt>ชั้นประกัน</dt><dd>{{ selectedProposal.insuranceClass }}</dd></div>
+            <div class="pc-row"><dt>ทุนประกัน</dt><dd>{{ selectedProposal.sumInsure | number:'1.0-0' }} บาท</dd></div>
+            <div class="pc-row"><dt>เบี้ยสุทธิ/ปี</dt><dd>{{ selectedProposal.premium | number:'1.0-0' }} บาท</dd></div>
+            <div class="pc-row emphasis"><dt>เบี้ยรวมอากร/ปี</dt><dd>{{ selectedProposal.total | number:'1.0-0' }} บาท</dd></div>
+          </dl>
+          <p class="pc-warn">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M10 3.4 2.9 15.6a.9.9 0 0 0 .8 1.4h12.6a.9.9 0 0 0 .8-1.4L10 3.4Z" />
+              <path d="M10 8v3.2M10 14.1v.01" />
+            </svg>
+            <span>เรตแพคเกจ — ต้องยืนยันกับตัวแทนก่อนออกกรมธรรม์จริง</span>
+          </p>
+        </div>
+      }
+    </section>
+  }
+
+  @if (isReadyToPropose()) {
+    <div class="propose-bar">
+      @if (selectedProposal?.packageId) {
+        <button type="button" class="detail-btn" (click)="openDetail(selectedProposal.packageId)">ดูรายละเอียด</button>
+      }
+      <button class="propose-btn" (click)="submitProposal()" [disabled]="loading()">ส่งคำสั่งซื้อ</button>
+    </div>
+  }
+
+  <!-- plans-bar (รายการ "ดูรายละเอียด" ต่อแผน) ปิดไว้ก่อน รอปรับปรุงภายหลัง —
+       ปุ่มดูรายละเอียดย้ายไปอยู่ข้างปุ่ม "เสนอแพคเกจ" ใน propose-bar แทน -->
+
+  @if (suggestions().length && !loading()) {
+    <div class="suggest-row">
+      @for (s of suggestions(); track s) {
+        <button class="suggest-chip" (click)="sendSuggestion(s)">{{ s }}</button>
+      }
+    </div>
+  }
+
+  <footer class="chat-input" id="chat-composer">
+    <input #chatDoc type="file" accept="image/png,image/jpeg,image/webp,application/pdf" hidden (change)="onChatDocSelected($event)" />
+    <button type="button" class="attach-btn" (click)="chatDoc.click()" [disabled]="loading() || !!intake()"
+            title="แนบเอกสารรถ" aria-label="แนบเอกสารรถ">
+      <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+        <path d="M13.5 9.2 9.4 13.3a2.6 2.6 0 0 1-3.7-3.7l5.2-5.2a1.8 1.8 0 0 1 2.5 2.5l-5.1 5.2a.9.9 0 0 1-1.3-1.3l4.4-4.4" />
+      </svg>
+    </button>
+    <textarea
+      [(ngModel)]="userInput"
+      (keydown)="onKeyPress($event)"
+      placeholder="พิมพ์ข้อความ… (Enter เพื่อส่ง)"
+      aria-label="พิมพ์ข้อความถึงที่ปรึกษา"
+      rows="1"></textarea>
+    <button class="send-btn" (click)="sendMessage()" [disabled]="loading() || !userInput.trim()">ส่ง</button>
+  </footer>
+
+  @if (detailOpen()) {
+    <div class="modal-backdrop" (click)="closeDetail()">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="detail-title"
+           (click)="$event.stopPropagation()">
+        <header class="modal-head">
+          <h2 id="detail-title">รายละเอียดความคุ้มครอง</h2>
+          <button type="button" class="modal-x" (click)="closeDetail()" aria-label="ปิด">
+            <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" />
+            </svg>
+          </button>
+        </header>
+        <div class="modal-body">
+          @if (detailLoading()) {
+            <p class="modal-msg">กำลังโหลดรายละเอียด…</p>
+          } @else if (detailError()) {
+            <p class="modal-msg err">{{ detailError() }}</p>
+          } @else if (detail(); as d) {
+            <div class="d-head">
+              @if (d.insurerLogo) {
+                <img class="d-logo" [src]="d.insurerLogo" [alt]="d.insurerName" (error)="onImgError($event)" />
+              }
+              <div>
+                <p class="d-pkg">{{ d.packageName }}</p>
+                <p class="d-ins">{{ d.insurerName }} · ประกันชั้น {{ d.polTypeName }}</p>
+              </div>
+            </div>
+
+            <div class="d-prem-box">
+              <span class="d-prem-label">เบี้ยรวม/ปี</span>
+              <b class="d-prem-value">{{ d.premTotal | number:'1.0-0' }} บาท</b>
+              <small>≈ {{ d.premTotal / 12 | number:'1.0-0' }} บาท/เดือน</small>
+            </div>
+
+            <div class="d-row"><span>ทุนประกัน (ตัวรถ)</span><b>{{ d.sumInsure > 0 ? (d.sumInsure | number:'1.0-0') + ' บาท' : '—' }}</b></div>
+            <div class="d-row"><span>ค่าเสียหายส่วนแรก</span><b>{{ d.deductible > 0 ? (d.deductible | number:'1.0-0') + ' บาท' : 'ไม่มี' }}</b></div>
+            <div class="d-row"><span>ซ่อม</span><b>{{ d.renovType }}</b></div>
+            @if (carUsageText(d.carUsage); as u) { <div class="d-row"><span>การใช้งานรถ</span><b class="d-usage">{{ u }}</b></div> }
+
+            <h3 class="d-sec">ความคุ้มครองตัวรถ</h3>
+            <div class="d-row"><span>สูญหาย / ไฟไหม้</span><b>{{ d.fireTheft > 0 ? (d.fireTheft | number:'1.0-0') + ' บาท' : 'ไม่มี' }}</b></div>
+            <div class="d-row"><span>อุทกภัย (น้ำท่วม)</span><b>{{ d.flood > 0 ? (d.flood | number:'1.0-0') + ' บาท' : 'ไม่มี' }}</b></div>
+            <div class="d-row"><span>ภัยก่อการร้าย</span><b>{{ d.terrorism > 0 ? (d.terrorism | number:'1.0-0') + ' บาท' : 'ไม่มี' }}</b></div>
+
+            <h3 class="d-sec">ความรับผิดต่อบุคคลภายนอก</h3>
+            <div class="d-row"><span>ชีวิต/ร่างกาย ต่อคน</span><b>{{ d.thirdBodilyPers | number:'1.0-0' }} บาท</b></div>
+            <div class="d-row"><span>ชีวิต/ร่างกาย ต่อครั้ง</span><b>{{ d.thirdBodilyAccid | number:'1.0-0' }} บาท</b></div>
+            <div class="d-row"><span>ทรัพย์สินคู่กรณี ต่อครั้ง</span><b>{{ d.thirdProperty | number:'1.0-0' }} บาท</b></div>
+            @if (d.thirdPropertyDeduc > 0) { <div class="d-row"><span>ค่าเสียหายส่วนแรก (ทรัพย์สิน)</span><b>{{ d.thirdPropertyDeduc | number:'1.0-0' }} บาท</b></div> }
+
+            <h3 class="d-sec">ความคุ้มครองบุคคลในรถ</h3>
+            @if (d.bodilyDrivCover > 0) { <div class="d-row"><span>อุบัติเหตุส่วนบุคคล</span><b>{{ d.bodilyDrivCover | number:'1.0-0' }} บาท × {{ d.bodilyDrivCount }} คน</b></div> }
+            @if (d.bodilyPassCover > 0) { <div class="d-row"><span>อุบัติเหตุผู้โดยสาร</span><b>{{ d.bodilyPassCover | number:'1.0-0' }} บาท × {{ d.bodilyPassCount }} คน</b></div> }
+            @if (d.medicalBaht > 0) { <div class="d-row"><span>ค่ารักษาพยาบาล</span><b>{{ d.medicalBaht | number:'1.0-0' }} บาท × {{ d.medicalPers }} คน</b></div> }
+            @if (d.bailBondIns > 0) { <div class="d-row"><span>ประกันตัวผู้ขับขี่</span><b>{{ d.bailBondIns | number:'1.0-0' }} บาท</b></div> }
+
+            <p class="d-note">
+              <svg class="icon" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M10 3.4 2.9 15.6a.9.9 0 0 0 .8 1.4h12.6a.9.9 0 0 0 .8-1.4L10 3.4Z" />
+                <path d="M10 8v3.2M10 14.1v.01" />
+              </svg>
+              <span>เรตแพคเกจ — ต้องยืนยันกับตัวแทนก่อนออกกรมธรรม์จริง</span>
+            </p>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>
