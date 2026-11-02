@@ -2,20 +2,31 @@ using Dapper;
 using InsureChatBot.Api.Config;
 using InsureChatBot.Api.Models.Motor;
 using Microsoft.Data.SqlClient;
+using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
+using System.Data.Common;
 
 namespace InsureChatBot.Api.Services.Motor
 {
     /// <summary>
     /// อ่าน facet + แพคเกจสดจาก KPN SQL DB (KPNNew) ด้วย Dapper (read-only).
-    /// mirror logic ของ KPN: SetPremStm (ส่วนลด), logo (GetUrlLogo+LogoPath), fire/flood (PackageMotor). ดู ADR 0004.
+    /// หากไม่ได้ตั้ง ConnectionString จะสลับไปอ่านจาก SQLite (insurechat.db) ที่เก็บ 330,408 แพ็กเกจจริง.
     /// </summary>
     public class MotorFacetSqlService : IMotorFacetService
     {
         private readonly KpnDbSettings _db;
-        public MotorFacetSqlService(IOptions<KpnDbSettings> opt) { _db = opt.Value; }
+        private readonly string _sqlitePath;
 
-        private SqlConnection Conn() => new SqlConnection(_db.ConnectionString);
+        public MotorFacetSqlService(IOptions<KpnDbSettings> opt, IWebHostEnvironment env)
+        {
+            _db = opt.Value;
+            _sqlitePath = Path.Combine(env.ContentRootPath, "App_Data", "insurechat.db");
+        }
+
+        private bool UseSqlite => string.IsNullOrWhiteSpace(_db?.ConnectionString);
+        private DbConnection Conn() => UseSqlite
+            ? new SqliteConnection($"Data Source={_sqlitePath}")
+            : new SqlConnection(_db.ConnectionString);
 
         private static List<FacetItem> ToFacets(IEnumerable<string> vals) =>
             vals.Where(v => !string.IsNullOrWhiteSpace(v))
@@ -32,111 +43,154 @@ namespace InsureChatBot.Api.Services.Motor
 
         public async Task<List<FacetItem>> GetBrandsAsync()
         {
-            if (string.IsNullOrWhiteSpace(_db.ConnectionString))
-            {
-                return new List<FacetItem>
-                {
-                    new() { Value = "HONDA", Label = "HONDA" },
-                    new() { Value = "TOYOTA", Label = "TOYOTA" },
-                    new() { Value = "MAZDA", Label = "MAZDA" },
-                    new() { Value = "ISUZU", Label = "ISUZU" },
-                    new() { Value = "NISSAN", Label = "NISSAN" },
-                    new() { Value = "MITSUBISHI", Label = "MITSUBISHI" },
-                    new() { Value = "FORD", Label = "FORD" },
-                    new() { Value = "MG", Label = "MG" },
-                    new() { Value = "BYD", Label = "BYD" }
-                };
-            }
-            const string sql = @"SELECT DISTINCT CarBrandName FROM PackagePolType
-                                 WHERE CarBrandName IS NOT NULL AND CarBrandName <> '' ORDER BY CarBrandName";
             using var c = Conn();
-            return ToFacets(await c.QueryAsync<string>(sql));
+            string sql = UseSqlite
+                ? @"SELECT DISTINCT CarBrandName FROM MotorPackages WHERE CarBrandName IS NOT NULL AND CarBrandName <> '' ORDER BY CarBrandName"
+                : @"SELECT DISTINCT CarBrandName FROM PackagePolType WHERE CarBrandName IS NOT NULL AND CarBrandName <> '' ORDER BY CarBrandName";
+            try
+            {
+                var rows = await c.QueryAsync<string>(sql);
+                var facets = ToFacets(rows);
+                if (facets.Count > 0) return facets;
+            }
+            catch { }
+
+            return DefaultBrands();
         }
+
+        private static List<FacetItem> DefaultBrands() => new()
+        {
+            new() { Value = "HONDA", Label = "HONDA" },
+            new() { Value = "TOYOTA", Label = "TOYOTA" },
+            new() { Value = "MAZDA", Label = "MAZDA" },
+            new() { Value = "ISUZU", Label = "ISUZU" },
+            new() { Value = "NISSAN", Label = "NISSAN" },
+            new() { Value = "MITSUBISHI", Label = "MITSUBISHI" },
+            new() { Value = "FORD", Label = "FORD" },
+            new() { Value = "MG", Label = "MG" },
+            new() { Value = "BYD", Label = "BYD" }
+        };
 
         public async Task<List<FacetItem>> GetModelsAsync(string brand)
         {
-            if (string.IsNullOrWhiteSpace(_db.ConnectionString))
-            {
-                var b = (brand ?? "").ToUpperInvariant();
-                var list = b switch
-                {
-                    "HONDA" => new[] { "CIVIC", "CITY", "HR-V", "CR-V", "JAZZ", "ACCORD" },
-                    "TOYOTA" => new[] { "YARIS", "YARIS ATIV", "COROLLA ALTIS", "COROLLA CROSS", "FORTUNER", "CAMRY", "HILUX REVO" },
-                    "MAZDA" => new[] { "MAZDA 2", "MAZDA 3", "CX-3", "CX-30", "CX-5" },
-                    "BYD" => new[] { "ATTO 3", "DOLPHIN", "SEAL" },
-                    _ => new[] { "รุ่นยอดนิยม 1", "รุ่นยอดนิยม 2", "รุ่นอื่นๆ" }
-                };
-                return list.Select(m => new FacetItem { Value = m, Label = m }).ToList();
-            }
-            const string sql = @"SELECT DISTINCT CarModelName FROM PackagePolType
-                                 WHERE CarBrandName = @brand AND CarModelName IS NOT NULL AND CarModelName <> ''
-                                 ORDER BY CarModelName";
             using var c = Conn();
-            return ToFacets(await c.QueryAsync<string>(sql, new { brand }));
+            string sql = UseSqlite
+                ? @"SELECT DISTINCT CarModelName FROM MotorPackages WHERE CarBrandName = @brand AND CarModelName IS NOT NULL AND CarModelName <> '' ORDER BY CarModelName"
+                : @"SELECT DISTINCT CarModelName FROM PackagePolType WHERE CarBrandName = @brand AND CarModelName IS NOT NULL AND CarModelName <> '' ORDER BY CarModelName";
+            try
+            {
+                var rows = await c.QueryAsync<string>(sql, new { brand });
+                var facets = ToFacets(rows);
+                if (facets.Count > 0) return facets;
+            }
+            catch { }
+
+            return DefaultModels(brand);
+        }
+
+        private static List<FacetItem> DefaultModels(string brand)
+        {
+            var b = (brand ?? "").ToUpperInvariant();
+            var list = b switch
+            {
+                "HONDA" => new[] { "CIVIC", "CITY", "HR-V", "CR-V", "JAZZ", "ACCORD" },
+                "TOYOTA" => new[] { "YARIS", "YARIS ATIV", "COROLLA ALTIS", "COROLLA CROSS", "FORTUNER", "CAMRY", "HILUX REVO" },
+                "MAZDA" => new[] { "MAZDA 2", "MAZDA 3", "CX-3", "CX-30", "CX-5" },
+                "BYD" => new[] { "ATTO 3", "DOLPHIN", "SEAL" },
+                _ => new[] { "รุ่นยอดนิยม 1", "รุ่นยอดนิยม 2", "รุ่นอื่นๆ" }
+            };
+            return list.Select(m => new FacetItem { Value = m, Label = m }).ToList();
         }
 
         public async Task<List<FacetItem>> GetCcAsync(string brand, string model)
         {
-            if (string.IsNullOrWhiteSpace(_db.ConnectionString))
-            {
-                return new List<FacetItem>
-                {
-                    new() { Value = "1200", Label = "1200" },
-                    new() { Value = "1500", Label = "1500" },
-                    new() { Value = "1800", Label = "1800" },
-                    new() { Value = "2000", Label = "2000" }
-                };
-            }
-            const string sql = @"SELECT cc FROM (
-                                   SELECT DISTINCT m.Ccmax AS cc FROM PackagePolType p
-                                   JOIN PackageMotor m ON p.PackageId = m.PackageId
-                                   WHERE p.CarBrandName = @brand AND p.CarModelName = @model
-                                     AND m.Ccmax IS NOT NULL AND m.Ccmax <> ''
-                                 ) t ORDER BY TRY_CAST(t.cc AS INT)";
             using var c = Conn();
-            return ToFacets(await c.QueryAsync<string>(sql, new { brand, model }));
+            string sql = UseSqlite
+                ? @"SELECT DISTINCT Ccmax FROM MotorPackages WHERE CarBrandName = @brand AND CarModelName = @model AND Ccmax IS NOT NULL AND Ccmax <> '' ORDER BY CAST(Ccmax AS INT)"
+                : @"SELECT cc FROM (SELECT DISTINCT m.Ccmax AS cc FROM PackagePolType p JOIN PackageMotor m ON p.PackageId = m.PackageId WHERE p.CarBrandName = @brand AND p.CarModelName = @model AND m.Ccmax IS NOT NULL AND m.Ccmax <> '') t ORDER BY TRY_CAST(t.cc AS INT)";
+            try
+            {
+                var rows = await c.QueryAsync<string>(sql, new { brand, model });
+                var facets = ToFacets(rows);
+                if (facets.Count > 0) return facets;
+            }
+            catch { }
+
+            return new List<FacetItem>
+            {
+                new() { Value = "1200", Label = "1200" },
+                new() { Value = "1500", Label = "1500" },
+                new() { Value = "1800", Label = "1800" },
+                new() { Value = "2000", Label = "2000" }
+            };
         }
 
         public async Task<List<FacetItem>> GetYearsAsync(string brand, string model, string cc)
         {
-            if (string.IsNullOrWhiteSpace(_db.ConnectionString))
-            {
-                var years = Enumerable.Range(2015, 11).Reverse();
-                return years.Select(y => new FacetItem { Value = y.ToString(), Label = y.ToString() }).ToList();
-            }
-            // cc ว่าง = ไม่กรองขนาดเครื่อง → คืนปีรวมทุก CC (ฟอร์มตัด step CC ออกแล้ว, AI สโคปทีหลัง)
-            var sql = @"SELECT DISTINCT p.Year FROM PackagePolType p
-                        JOIN PackageMotor m ON p.PackageId = m.PackageId
-                        WHERE p.CarBrandName = @brand AND p.CarModelName = @model "
-                      + (string.IsNullOrWhiteSpace(cc) ? "" : "AND m.Ccmax = @cc ")
-                      + "ORDER BY p.Year DESC";
             using var c = Conn();
-            var res = await c.QueryAsync<int>(sql, new { brand, model, cc });
-            return res.Select(y => new FacetItem { Value = y.ToString(), Label = y.ToString() }).ToList();
+            string sql = UseSqlite
+                ? @"SELECT DISTINCT Year FROM MotorPackages WHERE CarBrandName = @brand AND CarModelName = @model "
+                  + (string.IsNullOrWhiteSpace(cc) ? "" : "AND Ccmax = @cc ")
+                  + "ORDER BY Year DESC"
+                : @"SELECT DISTINCT p.Year FROM PackagePolType p JOIN PackageMotor m ON p.PackageId = m.PackageId WHERE p.CarBrandName = @brand AND p.CarModelName = @model "
+                  + (string.IsNullOrWhiteSpace(cc) ? "" : "AND m.Ccmax = @cc ")
+                  + "ORDER BY p.Year DESC";
+            try
+            {
+                var res = await c.QueryAsync<int>(sql, new { brand, model, cc });
+                var list = res.Where(y => y > 0).Select(y => new FacetItem { Value = y.ToString(), Label = y.ToString() }).ToList();
+                if (list.Count > 0) return list;
+            }
+            catch { }
+
+            var years = Enumerable.Range(2015, 11).Reverse();
+            return years.Select(y => new FacetItem { Value = y.ToString(), Label = y.ToString() }).ToList();
         }
 
         public async Task<List<PolTypeItem>> GetPolTypesAsync(string brand, string model, string cc, int year)
         {
-            const string sql = @"SELECT DISTINCT p.PolTypeId, pt.PolTypeName FROM PackagePolType p
-                                 JOIN PackageMotor m ON p.PackageId = m.PackageId
-                                 LEFT JOIN PolicyType pt ON p.PolTypeId = pt.PolTypeId
-                                 WHERE p.CarBrandName = @brand AND p.CarModelName = @model AND m.Ccmax = @cc AND p.Year = @year
-                                 ORDER BY pt.PolTypeName";
             using var c = Conn();
-            return (await c.QueryAsync<PolTypeItem>(sql, new { brand, model, cc, year })).ToList();
+            if (UseSqlite)
+            {
+                string sql = @"SELECT DISTINCT PolTypeName FROM MotorPackages WHERE CarBrandName = @brand AND CarModelName = @model "
+                           + (year > 0 ? "AND Year = @year " : "")
+                           + "ORDER BY PolTypeName";
+                var rows = await c.QueryAsync<string>(sql, new { brand, model, year });
+                return rows.Select((p, idx) => new PolTypeItem { PolTypeId = idx + 1, PolTypeName = p }).ToList();
+            }
+            else
+            {
+                const string sql = @"SELECT DISTINCT p.PolTypeId, pt.PolTypeName FROM PackagePolType p
+                                     JOIN PackageMotor m ON p.PackageId = m.PackageId
+                                     LEFT JOIN PolicyType pt ON p.PolTypeId = pt.PolTypeId
+                                     WHERE p.CarBrandName = @brand AND p.CarModelName = @model AND m.Ccmax = @cc AND p.Year = @year
+                                     ORDER BY pt.PolTypeName";
+                return (await c.QueryAsync<PolTypeItem>(sql, new { brand, model, cc, year })).ToList();
+            }
         }
 
         public async Task<List<FacetItem>> GetSumInsuresAsync(string brand, string model, string cc, int year, int? polTypeId)
         {
-            var sql = @"SELECT DISTINCT p.SumInsureMax FROM PackagePolType p
-                        JOIN PackageMotor m ON p.PackageId = m.PackageId
-                        WHERE p.CarBrandName = @brand AND p.CarModelName = @model AND m.Ccmax = @cc AND p.Year = @year
-                          AND p.SumInsureMax > 0 "
-                      + (polTypeId.HasValue ? "AND p.PolTypeId = @polTypeId " : "")
-                      + "ORDER BY p.SumInsureMax";
             using var c = Conn();
-            var sums = await c.QueryAsync<decimal>(sql, new { brand, model, cc, year, polTypeId });
-            return sums.Select(s => new FacetItem { Value = ((long)s).ToString(), Label = s.ToString("#,##0") }).ToList();
+            if (UseSqlite)
+            {
+                string sql = @"SELECT DISTINCT SumInsureMax FROM MotorPackages WHERE CarBrandName = @brand AND CarModelName = @model "
+                           + (year > 0 ? "AND Year = @year " : "")
+                           + "AND SumInsureMax > 0 ORDER BY SumInsureMax";
+                var sums = await c.QueryAsync<decimal>(sql, new { brand, model, year });
+                return sums.Select(s => new FacetItem { Value = ((long)s).ToString(), Label = s.ToString("#,##0") }).ToList();
+            }
+            else
+            {
+                var sql = @"SELECT DISTINCT p.SumInsureMax FROM PackagePolType p
+                            JOIN PackageMotor m ON p.PackageId = m.PackageId
+                            WHERE p.CarBrandName = @brand AND p.CarModelName = @model AND m.Ccmax = @cc AND p.Year = @year
+                              AND p.SumInsureMax > 0 "
+                          + (polTypeId.HasValue ? "AND p.PolTypeId = @polTypeId " : "")
+                          + "ORDER BY p.SumInsureMax";
+                var sums = await c.QueryAsync<decimal>(sql, new { brand, model, cc, year, polTypeId });
+                return sums.Select(s => new FacetItem { Value = ((long)s).ToString(), Label = s.ToString("#,##0") }).ToList();
+            }
         }
 
         public async Task<List<FacetItem>> GetFireSumInsuresAsync(string brand, string model, string cc, int year, int? polTypeId)
@@ -187,78 +241,54 @@ namespace InsureChatBot.Api.Services.Motor
 
         public async Task<List<PackageRow>> SearchPackagesAsync(PackageSearchRequest r)
         {
-            if (string.IsNullOrWhiteSpace(_db.ConnectionString))
+            using var c = Conn();
+            if (UseSqlite)
             {
-                // ข้อมูลจำลองแพ็กเกจประกันภัยรถยนต์สุดหรู สมจริงระดับพรีเมียม
-                var brand = !string.IsNullOrWhiteSpace(r.Brand) ? r.Brand : "HONDA";
-                var model = !string.IsNullOrWhiteSpace(r.Model) ? r.Model : "CIVIC";
+                var brand = !string.IsNullOrWhiteSpace(r.Brand) ? r.Brand.Trim().ToUpperInvariant() : "HONDA";
+                var model = !string.IsNullOrWhiteSpace(r.Model) ? r.Model.Trim().ToUpperInvariant() : "CIVIC";
                 var year = r.Year > 0 ? r.Year : 2022;
 
-                return new List<PackageRow>
+                var sql = @"SELECT Id AS PackageId, InsurerName, 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=100' AS InsurerLogo,
+                                   PackageName, PolTypeName, RenovType, SumInsureMax,
+                                   PremNet, PremStm, PremStm AS PremTotal, FireSuminsure, FloodSuminsure
+                            FROM MotorPackages
+                            WHERE CarBrandName = @brand AND CarModelName = @model ";
+                if (r.Year > 0) sql += "AND Year = @year ";
+                if (!string.IsNullOrWhiteSpace(r.Cc)) sql += "AND Ccmax = @Cc ";
+                if (r.SumInsure.HasValue && r.SumInsure.Value > 0) sql += "AND SumInsureMax = @SumInsure ";
+
+                sql += (r.Sort) switch
                 {
-                    new()
-                    {
-                        PackageId = 101,
-                        InsurerName = "วิริยะประกันภัย",
-                        InsurerLogo = "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=100",
-                        PackageName = $"{brand} {model} ซ่อมห้าง Premium",
-                        PolTypeName = "ประกันภัยรถยนต์ชั้น 1",
-                        RenovType = "ห้าง",
-                        SumInsureMax = 550000,
-                        PremNet = 17500,
-                        PremStm = 18600,
-                        PremTotal = 18600,
-                        FireSuminsure = 550000,
-                        FloodSuminsure = 550000
-                    },
-                    new()
-                    {
-                        PackageId = 102,
-                        InsurerName = "กรุงเทพประกันภัย",
-                        InsurerLogo = "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=100",
-                        PackageName = $"{brand} {model} สบายใจ ไร้กังวล",
-                        PolTypeName = "ประกันภัยรถยนต์ชั้น 1",
-                        RenovType = "อู่",
-                        SumInsureMax = 500000,
-                        PremNet = 14200,
-                        PremStm = 15100,
-                        PremTotal = 15100,
-                        FireSuminsure = 500000,
-                        FloodSuminsure = 500000
-                    },
-                    new()
-                    {
-                        PackageId = 103,
-                        InsurerName = "คุ้มภัยโตเกียวมารีน",
-                        InsurerLogo = "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=100",
-                        PackageName = $"{brand} 2+ พลัสคุ้มครองน้ำท่วม",
-                        PolTypeName = "ประกันภัยรถยนต์ชั้น 2+",
-                        RenovType = "อู่",
-                        SumInsureMax = 250000,
-                        PremNet = 7900,
-                        PremStm = 8400,
-                        PremTotal = 8400,
-                        FireSuminsure = 250000,
-                        FloodSuminsure = 100000
-                    },
-                    new()
-                    {
-                        PackageId = 104,
-                        InsurerName = "ทิพยประกันภัย",
-                        InsurerLogo = "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=100",
-                        PackageName = $"{brand} Tip Premium Care",
-                        PolTypeName = "ประกันภัยรถยนต์ชั้น 1",
-                        RenovType = "ห้าง",
-                        SumInsureMax = 520000,
-                        PremNet = 16800,
-                        PremStm = 17900,
-                        PremTotal = 17900,
-                        FireSuminsure = 520000,
-                        FloodSuminsure = 520000
-                    }
+                    "prem_desc" => "ORDER BY PremNet DESC ",
+                    "sum"       => "ORDER BY SumInsureMax ASC, PremNet ASC ",
+                    "sum_desc"  => "ORDER BY SumInsureMax DESC, PremNet ASC ",
+                    _           => "ORDER BY PremNet ASC "
                 };
+                sql += "LIMIT 500";
+
+                var rows = (await c.QueryAsync<PackageRow>(sql, new { brand, model, year, Cc = r.Cc, SumInsure = r.SumInsure })).ToList();
+                if (rows.Count == 0)
+                {
+                    // Fallback using LIKE in case model is partial (e.g. CAMRY matching CAMRY 2.0)
+                    var likeSql = @"SELECT Id AS PackageId, InsurerName, 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=100' AS InsurerLogo,
+                                           PackageName, PolTypeName, RenovType, SumInsureMax,
+                                           PremNet, PremStm, PremStm AS PremTotal, FireSuminsure, FloodSuminsure
+                                    FROM MotorPackages
+                                    WHERE CarBrandName = @brand AND CarModelName LIKE @modelPattern ";
+                    if (r.Year > 0) likeSql += "AND Year = @year ";
+                    likeSql += "ORDER BY PremNet ASC LIMIT 500";
+                    rows = (await c.QueryAsync<PackageRow>(likeSql, new { brand, modelPattern = $"%{model}%", year })).ToList();
+                }
+
+                if (rows.Count > 0)
+                {
+                    if (r.FireSum.HasValue && r.FireSum.Value > 0) rows = rows.Where(p => p.FireSuminsure >= r.FireSum.Value).ToList();
+                    if (r.FloodSum.HasValue && r.FloodSum.Value > 0) rows = rows.Where(p => p.FloodSuminsure >= r.FloodSum.Value).ToList();
+                    return rows;
+                }
             }
-            var sql = @"SELECT p.PackageId, ins.Name AS InsurerName, ins.LogoPath,
+
+            var serverSql = @"SELECT p.PackageId, ins.Name AS InsurerName, ins.LogoPath,
                                p.PackageName, pt.PolTypeName, m.RenovType, p.SumInsureMax,
                                p.PremNet, p.PremStm, p.Discount, p.DiscType, m.FireTheft, m.Flood
                         FROM PackagePolType p
@@ -271,10 +301,9 @@ namespace InsureChatBot.Api.Services.Motor
                       + (r.SumInsure.HasValue ? "AND p.SumInsureMax = @SumInsure " : "");
                       // หมายเหตุ: จังหวัด (ProvinId) ไม่กรอง — ทุกแพคเกจเป็น nationwide (ProvinId=0) และไม่อยู่ใน
                       // ProvinSale; ตรงกับ KPN live (provinnamePackage="ไม่มีข้อมูล"). เก็บค่าไว้ลง proposal เท่านั้น
-            using var c = Conn();
-            var raws = (await c.QueryAsync<PackageRaw>(sql, r)).ToList();
+            var raws = (await c.QueryAsync<PackageRaw>(serverSql, r)).ToList();
 
-            var rows = raws.Select(x =>
+            var serverRows = raws.Select(x =>
             {
                 decimal fire = ParseMoney(x.FireTheft), flood = ParseMoney(x.Flood);
                 return new PackageRow
@@ -298,10 +327,10 @@ namespace InsureChatBot.Api.Services.Motor
             });
 
             // กรอง fire/flood ฝั่ง C# (เก็บเป็น string ใน DB) ถ้าผู้ใช้เลือก
-            if (r.FireSum.HasValue) rows = rows.Where(p => p.FireSuminsure == r.FireSum.Value);
-            if (r.FloodSum.HasValue) rows = rows.Where(p => p.FloodSuminsure == r.FloodSum.Value);
+            if (r.FireSum.HasValue) serverRows = serverRows.Where(p => p.FireSuminsure == r.FireSum.Value);
+            if (r.FloodSum.HasValue) serverRows = serverRows.Where(p => p.FloodSuminsure == r.FloodSum.Value);
 
-            var list = rows.ToList();
+            var list = serverRows.ToList();
             list = (r.Sort) switch
             {
                 "prem_desc" => list.OrderByDescending(p => p.PremStm).ToList(),
@@ -345,6 +374,18 @@ namespace InsureChatBot.Api.Services.Motor
 
         public async Task<MotorPackageDetail> GetPackageDetailAsync(int packageId)
         {
+            using var c = Conn();
+            if (UseSqlite)
+            {
+                var sqliteSql = @"SELECT Id AS PackageId, InsurerName, 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=100' AS InsurerLogo,
+                                         PackageName, PolTypeName, '110' AS CarUsage, RenovType, SumInsureMax AS SumInsure,
+                                         0 AS Deductible, PremNet, PremStm AS PremTotal, FireSuminsure AS FireTheft, FloodSuminsure AS Flood, 0 AS Terrorism
+                                  FROM MotorPackages
+                                  WHERE Id = @packageId LIMIT 1";
+                var p = await c.QueryFirstOrDefaultAsync<MotorPackageDetail>(sqliteSql, new { packageId });
+                return p;
+            }
+
             const string sql = @"SELECT TOP 1 p.PackageId, ins.Name AS InsurerName, ins.LogoPath, p.PackageName,
                                         pt.PolTypeName, m.CarUsage, m.RenovType, p.SumInsureMax,
                                         m.OwnAmtDeduc, p.PremNet, p.PremStm, p.Discount, p.DiscType,
@@ -357,7 +398,6 @@ namespace InsureChatBot.Api.Services.Motor
                                  LEFT JOIN PolicyType pt ON p.PolTypeId = pt.PolTypeId
                                  LEFT JOIN Insure ins ON p.InsureId = ins.InsureId
                                  WHERE p.PackageId = @packageId";
-            using var c = Conn();
             var x = await c.QueryFirstOrDefaultAsync<PkgDetailRaw>(sql, new { packageId });
             if (x == null) return null;
             return new MotorPackageDetail
