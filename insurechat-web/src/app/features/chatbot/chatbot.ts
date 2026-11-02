@@ -13,6 +13,7 @@ import { validateDocFile, downscaleImage } from '../../core/doc-upload';
 import { DocIntakeHandoff, DocIntakeData } from '../../core/doc-intake-handoff';
 import { IntakeField, IntakeKnown, nextField, questionFor } from './intake-gate';
 import { topBrands, topProvinces } from '../../core/motor-popular';
+import { getSmartInsuranceReply } from '../../core/chat-smart-reply';
 
 interface ChatbotTurn {
   timestamp: string;
@@ -79,6 +80,7 @@ export class Chatbot implements OnInit {
   private prevProposalSig = '';
 
   private readonly apiUrl = `${environment.apiUrl}/Chatbot`;
+  private lastSentMessage = '';
 
   // modal "ดูรายละเอียด" — ความคุ้มครองเต็มของแผน (ดึงสดจาก /Motor/PackageDetail)
   detailOpen = signal(false);
@@ -348,13 +350,14 @@ export class Chatbot implements OnInit {
       })
       .subscribe({
         next: (res) => this.suggestions.set(res.suggestions ?? []),
-        error: () => this.suggestions.set([])   // เงียบ — แค่ไม่มีปุ่ม ลูกค้ายังพิมพ์เองได้
+        error: () => this.suggestions.set(['สนใจประกันชั้น 1', 'สนใจประกัน 2+', 'ดูตารางความคุ้มครอง', 'สอบถามเรื่องเบี้ย'])
       });
   }
 
   sendMessage(): void {
     const text = this.userInput.trim();
     if (!text || this.loading()) return;
+    this.lastSentMessage = text;
 
     // gate เปิดอยู่ → คำตอบเข้า gate ไม่ยิง /MessageStream (ADR 0019)
     if (this.intake()) {
@@ -449,13 +452,13 @@ export class Chatbot implements OnInit {
         }
       }
     } catch {
-      // error ก่อน delta แรก → กล่องผิดพลาด; ถ้ามี partial แล้ว → ต่อท้ายหมายเหตุ
+      // error ก่อน delta แรก → จำลองการตอบแบบ Client-Side Smart Fallback
       if (gotDelta && this.streamingText()) {
         this.commitBubble(this.streamingText() + '\n\n⚠️ การเชื่อมต่อขัดข้อง คำตอบอาจไม่ครบ');
+        this.endStreaming();
       } else {
-        this.commitBubble('⚠️ เกิดข้อผิดพลาดในการส่งข้อความ โปรดลองใหม่');
+        this.simulateClientReply(text);
       }
-      this.endStreaming();
     }
   }
 
@@ -487,12 +490,47 @@ export class Chatbot implements OnInit {
         this.endStreaming();
         break;
       case 'error':
-        this.commitBubble(this.streamingText()
-          ? this.streamingText() + '\n\n⚠️ ' + (ev.text ?? 'เกิดข้อผิดพลาด')
-          : '⚠️ ' + (ev.text ?? 'เกิดข้อผิดพลาดในการส่งข้อความ โปรดลองใหม่'));
-        this.endStreaming();
+        if (!this.streamingText()) {
+          this.simulateClientReply(this.lastSentMessage || 'สวัสดี');
+        } else {
+          this.commitBubble(this.streamingText() + '\n\n⚠️ ' + (ev.text ?? 'เกิดข้อผิดพลาด'));
+          this.endStreaming();
+        }
         break;
     }
+  }
+
+  /**
+   * จำลองการตอบของที่ปรึกษา AI ฝั่ง Client-Side พร้อม Typing Animation
+   * สำหรับ GitHub Pages / โหมดออฟไลน์ หรือเมื่อเซิร์ฟเวอร์ภายนอกถูกบล็อก
+   */
+  private simulateClientReply(userText: string): void {
+    const brand = this.conversationContext?.brand;
+    const model = this.conversationContext?.model;
+    const year = this.conversationContext?.year;
+    const result = getSmartInsuranceReply(userText, brand, model, year);
+
+    this.statusText.set('กำลังพิมพ์คำตอบ…');
+    this.streamingActive.set(true);
+    this.streamingText.set('');
+
+    const fullText = result.reply;
+    let idx = 0;
+    const chunkSize = 4;
+    const timer = setInterval(() => {
+      idx += chunkSize;
+      if (idx >= fullText.length) {
+        clearInterval(timer);
+        this.statusText.set('');
+        this.streamingText.set(fullText);
+        this.commitBubble(fullText);
+        this.suggestions.set(result.suggestions);
+        this.endStreaming();
+      } else {
+        this.streamingText.set(fullText.slice(0, idx));
+        this.scrollChatToBottom();
+      }
+    }, 25);
   }
 
   /** แตกคำตอบตาม sentinel [BUBBLE] (บรรทัดเดี่ยว) → กล่องละชิ้น, ตัดชิ้นว่างทิ้ง (ADR 0006).
