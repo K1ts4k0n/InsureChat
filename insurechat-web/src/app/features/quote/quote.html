@@ -2,7 +2,10 @@
   <a class="skip-link" href="#step-brand">ข้ามไปแบบฟอร์ม</a>
 
   <header class="q-header">
-    <p class="wordmark">InsureChat</p>
+    <div class="brand-lockup">
+      <p class="wordmark">InsureChat</p>
+      <span>INSURANCE ADVISORY</span>
+    </div>
     <nav class="head-actions" aria-label="เมนูหลัก">
       <a class="nav-link" routerLink="/chat">คุยกับที่ปรึกษา</a>
       <theme-toggle />
@@ -11,8 +14,14 @@
 
   <main class="q-body">
     <header class="q-intro">
-      <h1>ข้อมูลรถยนต์</h1>
-      <p class="sub">กรอกข้อมูลรถ แล้วให้ที่ปรึกษา AI ช่วยเลือกแผนที่ใช่ — ทุนประกัน เบี้ย ไฟไหม้ น้ำท่วม คุยต่อในแชตได้</p>
+      <p class="intro-kicker">ประกันรถยนต์</p>
+      <h1>เปรียบเทียบแผนที่เหมาะกับรถของคุณ</h1>
+      <p class="sub">ระบุข้อมูลรถเพื่อดูบริษัท ประเภทประกัน และเบี้ยจากแผนที่มีจริง แล้วเลือกเก็บไว้เปรียบเทียบหรือส่งต่อได้ทันที</p>
+      <div class="journey" aria-label="ขั้นตอนการใช้งาน">
+        <span><b>01</b> ระบุข้อมูลรถ</span>
+        <span><b>02</b> เปรียบเทียบแผน</span>
+        <span><b>03</b> ส่งต่อใบเสนอราคา</span>
+      </div>
     </header>
 
     <div class="doc-intake">
@@ -41,17 +50,6 @@
         </span>
       </button>
     </div>
-
-    @if (isOfflineMode()) {
-      <div class="demo-notice" role="status">
-        <span class="demo-badge">GitHub Pages Demo</span>
-        <span class="demo-text">
-          กำลังแสดงผลโหมดตัวอย่าง (เนื่องจากเบราว์เซอร์บล็อก HTTP จาก HTTPS) — 
-          หากต้องการเชื่อมต่อฐานข้อมูลสด <strong>330,408 แผน</strong> สามารถเปิดผ่าน 
-          <a href="http://localhost:4200" class="demo-link">http://localhost:4200</a> ได้เลยครับ
-        </span>
-      </div>
-    }
 
     @if (error()) {
       <div class="error" role="alert">
