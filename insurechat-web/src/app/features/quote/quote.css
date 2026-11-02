@@ -94,6 +94,35 @@
 }
 .retry-btn:hover { filter: brightness(0.92); }
 
+.demo-notice {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: var(--r-md);
+  font-size: var(--fs-sm);
+  color: var(--text);
+  line-height: var(--lh-base);
+}
+.demo-badge {
+  flex: none;
+  padding: 2px 8px;
+  background: #2563eb;
+  color: #fff;
+  border-radius: var(--r-full);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+}
+.demo-text { flex: 1; }
+.demo-link {
+  color: #3b82f6;
+  font-weight: var(--fw-semibold);
+  text-decoration: underline;
+}
+
 /* ── ฟอร์ม 4 ขั้น (ADR 0005: ระบุตัวรถก่อน — ความคุ้มครอง/งบ ไปสโคปในแชต) ── */
 .steps {
   display: flex;

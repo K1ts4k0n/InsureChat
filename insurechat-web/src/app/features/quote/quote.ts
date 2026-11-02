@@ -29,13 +29,16 @@ export class Quote implements OnInit {
   error = signal('');
   docLoading = signal(false);
   docDragging = signal(false);
+  isOfflineMode;
 
   constructor(
     private facet: MotorFacet,
     private handoff: QuoteHandoff,
     private docIntake: DocIntakeHandoff,
     private router: Router
-  ) {}
+  ) {
+    this.isOfflineMode = this.facet.isOfflineMode;
+  }
 
   ngOnInit(): void { this.loadBrands(); this.loadProvinces(); }
 

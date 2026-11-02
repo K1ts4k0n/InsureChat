@@ -1,7 +1,16 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
+import {
+  FALLBACK_BRANDS,
+  FALLBACK_YEARS,
+  FALLBACK_PROVINCES,
+  getFallbackModels,
+  getFallbackPackages,
+  getFallbackPackageDetail
+} from './motor-fallback-data';
 
 export interface FacetItem { value: string; label: string; }
 
@@ -57,38 +66,77 @@ export interface VehicleResolveResult {
 @Injectable({ providedIn: 'root' })
 export class MotorFacet {
   private base = `${environment.apiUrl}/Motor`;
+  readonly isOfflineMode = signal(false);
+
   constructor(private http: HttpClient) {}
 
-  brands(): Observable<FacetItem[]> { return this.http.get<FacetItem[]>(`${this.base}/Brands`); }
+  brands(): Observable<FacetItem[]> {
+    return this.http.get<FacetItem[]>(`${this.base}/Brands`).pipe(
+      catchError(() => {
+        this.isOfflineMode.set(true);
+        return of(FALLBACK_BRANDS);
+      })
+    );
+  }
+
   models(brand: string): Observable<FacetItem[]> {
-    return this.http.get<FacetItem[]>(`${this.base}/Models`, { params: { brand } });
+    return this.http.get<FacetItem[]>(`${this.base}/Models`, { params: { brand } }).pipe(
+      catchError(() => of(getFallbackModels(brand)))
+    );
   }
+
   cc(brand: string, model: string): Observable<FacetItem[]> {
-    return this.http.get<FacetItem[]>(`${this.base}/Cc`, { params: { brand, model } });
+    return this.http.get<FacetItem[]>(`${this.base}/Cc`, { params: { brand, model } }).pipe(
+      catchError(() => of([]))
+    );
   }
+
   years(brand: string, model: string, cc: string): Observable<FacetItem[]> {
-    return this.http.get<FacetItem[]>(`${this.base}/Years`, { params: { brand, model, cc } });
+    return this.http.get<FacetItem[]>(`${this.base}/Years`, { params: { brand, model, cc } }).pipe(
+      catchError(() => of(FALLBACK_YEARS))
+    );
   }
+
   polTypes(brand: string, model: string, cc: string, year: number): Observable<PolType[]> {
-    return this.http.get<PolType[]>(`${this.base}/PolTypes`, { params: { brand, model, cc, year } });
+    return this.http.get<PolType[]>(`${this.base}/PolTypes`, { params: { brand, model, cc, year } }).pipe(
+      catchError(() => of([]))
+    );
   }
+
   sumInsures(brand: string, model: string, cc: string, year: number, polTypeId?: number | null): Observable<FacetItem[]> {
-    return this.http.get<FacetItem[]>(`${this.base}/SumInsures`, { params: this.facetParams(brand, model, cc, year, polTypeId) });
+    return this.http.get<FacetItem[]>(`${this.base}/SumInsures`, { params: this.facetParams(brand, model, cc, year, polTypeId) }).pipe(
+      catchError(() => of([]))
+    );
   }
+
   fireSumInsures(brand: string, model: string, cc: string, year: number, polTypeId?: number | null): Observable<FacetItem[]> {
-    return this.http.get<FacetItem[]>(`${this.base}/FireSumInsures`, { params: this.facetParams(brand, model, cc, year, polTypeId) });
+    return this.http.get<FacetItem[]>(`${this.base}/FireSumInsures`, { params: this.facetParams(brand, model, cc, year, polTypeId) }).pipe(
+      catchError(() => of([]))
+    );
   }
+
   floodSumInsures(brand: string, model: string, cc: string, year: number, polTypeId?: number | null): Observable<FacetItem[]> {
-    return this.http.get<FacetItem[]>(`${this.base}/FloodSumInsures`, { params: this.facetParams(brand, model, cc, year, polTypeId) });
+    return this.http.get<FacetItem[]>(`${this.base}/FloodSumInsures`, { params: this.facetParams(brand, model, cc, year, polTypeId) }).pipe(
+      catchError(() => of([]))
+    );
   }
-  provinces(): Observable<FacetItem[]> { return this.http.get<FacetItem[]>(`${this.base}/Provinces`); }
+
+  provinces(): Observable<FacetItem[]> {
+    return this.http.get<FacetItem[]>(`${this.base}/Provinces`).pipe(
+      catchError(() => of(FALLBACK_PROVINCES))
+    );
+  }
 
   search(req: PackageSearchRequest): Observable<PackageRow[]> {
-    return this.http.post<PackageRow[]>(`${this.base}/Search`, req);
+    return this.http.post<PackageRow[]>(`${this.base}/Search`, req).pipe(
+      catchError(() => of(getFallbackPackages(req.brand, req.model)))
+    );
   }
 
   packageDetail(packageId: number): Observable<MotorPackageDetail> {
-    return this.http.get<MotorPackageDetail>(`${this.base}/PackageDetail`, { params: { packageId } });
+    return this.http.get<MotorPackageDetail>(`${this.base}/PackageDetail`, { params: { packageId } }).pipe(
+      catchError(() => of(getFallbackPackageDetail(packageId)))
+    );
   }
 
   /** แนบเอกสารรถ (Blob รูป/PDF) → vision สกัด → resolved ค่า facet (ADR 0018) */

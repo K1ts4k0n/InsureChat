@@ -128,3 +128,4 @@ conn.close()
 
 elapsed = time.time() - start_time
 print(f"DONE! Successfully imported {total_rows:,} records into SQLite in {elapsed:.2f} seconds.")
+
