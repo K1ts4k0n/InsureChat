@@ -227,31 +227,33 @@
         </div>
 
         @if (visiblePackages.length) {
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr><th>บริษัท / แผน</th><th>ประเภท</th><th>ซ่อม</th><th class="num">ทุนประกัน</th><th class="num">เบี้ย/ปี</th><th></th></tr>
-              </thead>
-              <tbody>
-                @for (pkg of visiblePackages; track pkg.packageId) {
-                  <tr>
-                    <td class="prod"><div class="ins">
-                      @if (pkg.insurerLogo) { <img class="logo" [src]="pkg.insurerLogo" [alt]="pkg.insurerName" (error)="onLogoError($event)" /> }
-                      <strong>{{ pkg.insurerName }}</strong>
-                    </div><span class="pkg">{{ pkg.packageName }}</span>
-                    <button type="button" class="choose choose-inline" (click)="choosePackage(pkg)">เลือกแผนนี้</button></td>
-                    <td><span class="class-badge">{{ pkg.polTypeName }}</span></td>
-                    <td>{{ pkg.renovType ? 'ซ่อม' + pkg.renovType : '—' }}</td>
-                    <td class="num">{{ pkg.sumInsureMax | number:'1.0-0' }} บ.</td>
-                    <td class="num"><strong>{{ pkg.premStm | number:'1.0-0' }} บ.</strong><span class="net">รวมอากร</span></td>
-                    <td class="ctr"><div class="plan-actions">
-                      <button type="button" class="share-btn" (click)="printPackagePdf(pkg)">บันทึก PDF</button>
-                      <button type="button" class="share-btn" (click)="sharePackageLine(pkg)">ส่ง LINE</button>
-                    </div></td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+          <div class="plan-list">
+            @for (pkg of visiblePackages; track pkg.packageId) {
+              <article class="plan-card" data-testid="plan-card">
+                <header class="plan-card-head">
+                  <div class="ins">
+                    @if (pkg.insurerLogo) { <img class="logo" [src]="pkg.insurerLogo" [alt]="pkg.insurerName" (error)="onLogoError($event)" /> }
+                    <div><p class="plan-insurer">{{ pkg.insurerName }}</p><p class="pkg">{{ pkg.packageName }}</p></div>
+                  </div>
+                  <span class="class-badge">{{ pkg.polTypeName }}</span>
+                </header>
+                <dl class="plan-facts">
+                  <div><dt>ซ่อม</dt><dd>{{ pkg.renovType || 'ไม่มีข้อมูล' }}</dd></div>
+                  <div><dt>ทุนประกัน</dt><dd>{{ pkg.sumInsureMax | number:'1.0-0' }} บาท</dd></div>
+                  <div class="premium"><dt>เบี้ย/ปี</dt><dd>{{ pkg.premStm | number:'1.0-0' }} บาท</dd></div>
+                  <div><dt>เบี้ยสุทธิ</dt><dd>{{ pkg.premNet | number:'1.0-0' }} บาท</dd></div>
+                  <div><dt>ไฟไหม้</dt><dd>{{ pkg.fireSuminsure | number:'1.0-0' }} บาท</dd></div>
+                  <div><dt>Deduct</dt><dd>{{ pkg.deductible == null ? 'ไม่มีข้อมูล' : (pkg.deductible | number:'1.0-0') + ' บาท' }}</dd></div>
+                  <div><dt>อุปกรณ์ตกแต่ง</dt><dd>ไม่มีข้อมูล</dd></div>
+                  <div><dt>น้ำท่วม</dt><dd>{{ pkg.floodSuminsure | number:'1.0-0' }} บาท</dd></div>
+                </dl>
+                <footer class="plan-actions">
+                  <button type="button" class="choose" (click)="choosePackage(pkg)">เลือกแผนนี้</button>
+                  <button type="button" class="share-btn" (click)="printPackagePdf(pkg)">บันทึก PDF</button>
+                  <button type="button" class="share-btn" (click)="sharePackageLine(pkg)">ส่ง LINE</button>
+                </footer>
+              </article>
+            }
           </div>
           <button type="button" class="cmp-btn" (click)="consultOnVisiblePackages()">ให้ที่ปรึกษาช่วยเปรียบเทียบ {{ visiblePackages.length }} แผนนี้</button>
         } @else {

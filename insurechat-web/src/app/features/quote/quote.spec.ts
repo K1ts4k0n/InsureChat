@@ -15,7 +15,7 @@ const plan: PackageRow = {
 };
 
 describe('Quote', () => {
-  it('keeps a visible select-plan button beside the plan name', async () => {
+  it('shows all coverage facts and a visible select action in one plan card', async () => {
     await TestBed.configureTestingModule({
       imports: [Quote],
       providers: [
@@ -30,6 +30,11 @@ describe('Quote', () => {
     fixture.componentInstance.packages.set([plan]);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.querySelector('.prod .choose')?.textContent).toContain('เลือกแผนนี้');
+    const card = fixture.nativeElement.querySelector('[data-testid="plan-card"]');
+    expect(card?.textContent).toContain('ไฟไหม้');
+    expect(card?.textContent).toContain('Deduct');
+    expect(card?.textContent).toContain('อุปกรณ์ตกแต่ง');
+    expect(card?.textContent).toContain('น้ำท่วม');
+    expect(card?.querySelector('.choose')?.textContent).toContain('เลือกแผนนี้');
   });
 });
