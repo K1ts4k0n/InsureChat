@@ -166,12 +166,12 @@ namespace InsureChatBot.Api.Services.Conversation
             if (lower.Contains("ทั้งหมด") || lower.Contains("ทุกแผน") || lower.Contains("เทียบ") || lower.Contains("มีอะไรบ้าง") || lower.Contains("ดูเพิ่ม") || lower.Contains("กี่แผน"))
             {
                 var tableReply = $"พบ {pool.Count} แผนที่ตรงกับรถ **{context.CarBrand} {context.CarModel} ปี {context.CarYear}** ค่ะ:\n\n" +
-                                 "| # | บริษัท | แผนความคุ้มครอง | ซ่อม | ทุนประกัน | เบี้ย/ปี |\n" +
-                                 "|---|--------|-----------------|:----:|:---------:|:-------:|\n";
+                                 "| # | บริษัท | ชั้น | ซ่อม | ทุนประกัน | เบี้ย/ปี | ไฟไหม้ | Deduct | อุปกรณ์ตกแต่ง | น้ำท่วม |\n" +
+                                 "|---:|---|---|---|---:|---:|---:|---:|---|---:|\n";
                 for (int i = 0; i < pool.Count; i++)
                 {
                     var p = pool[i];
-                    tableReply += $"| {i + 1} | {p.InsurerName} | {p.PolTypeName} | {p.RenovType} | {p.SumInsureMax:N0} บ. | **{p.PremNet:N0} บ.** |\n";
+                    tableReply += $"| {i + 1} | {p.InsurerName} | {p.PolTypeName} | {p.RenovType} | {p.SumInsureMax:N0} | {p.PremStm:N0} | {p.FireSuminsure:N0} | {p.Deductible:N0} | ไม่มีข้อมูล | {p.FloodSuminsure:N0} |\n";
                 }
                 tableReply += "\nสนใจแผนไหน พิมพ์หมายเลขแผน (เช่น **\"เอาแผน 1\"** หรือ **\"ขอแผนถูกสุด\"**) ได้เลยนะคะ";
                 return tableReply;

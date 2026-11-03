@@ -41,6 +41,7 @@ export interface PackageRow {
   discType: string;        // % | บาท | อื่นๆ | ''
   fireSuminsure: number;
   floodSuminsure: number;
+  deductible?: number;
 }
 export interface PackageSearchRequest {
   brand: string; model: string; cc: string; year: number;

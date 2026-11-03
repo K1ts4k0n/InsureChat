@@ -74,6 +74,21 @@ namespace InsureChatBot.Api.Controllers
 
                     try
                     {
+                        // ปุ่มในการ์ดคำสั่งซื้อส่ง message action กลับมา จึงตอบรับทันที
+                        // โดยไม่โยนเข้า flow แชตของลูกค้า และไม่อ้างว่าเปลี่ยนสถานะใน DB แล้ว.
+                        if (userMsg.StartsWith("ยืนยันรับคำสั่งซื้อ ", StringComparison.OrdinalIgnoreCase))
+                        {
+                            await _lineService.ReplyMessageAsync(evt.ReplyToken, new List<object>
+                            {
+                                new Dictionary<string, object>
+                                {
+                                    ["type"] = "text",
+                                    ["text"] = $"รับทราบการยืนยัน {userMsg.Replace("ยืนยันรับคำสั่งซื้อ ", "").Trim()} แล้วค่ะ"
+                                }
+                            });
+                            continue;
+                        }
+
                         var context = _sessionManager.GetOrCreateContext(userId);
 
                         // ส่งประมวลผลผ่านสมอง InsureChat (LLM / Consultative Engine)

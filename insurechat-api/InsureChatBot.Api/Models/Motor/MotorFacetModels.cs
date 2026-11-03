@@ -31,6 +31,7 @@ namespace InsureChatBot.Api.Models.Motor
         public string DiscType { get; set; }         // "%" | "บาท" | "อื่นๆ" | ""
         public decimal FireSuminsure { get; set; }
         public decimal FloodSuminsure { get; set; }
+        public decimal Deductible { get; set; }
     }
 
     public class PackageSearchRequest
@@ -63,6 +64,7 @@ namespace InsureChatBot.Api.Models.Motor
         public string DiscType { get; set; }
         public string FireTheft { get; set; }
         public string Flood { get; set; }
+        public string OwnAmtDeduc { get; set; }
     }
 
     /// <summary>ผลการ resolve เอกสารรถ → ค่า facet canonical (ADR 0018)</summary>

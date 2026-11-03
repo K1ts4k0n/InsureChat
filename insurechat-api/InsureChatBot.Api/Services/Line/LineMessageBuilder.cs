@@ -1,5 +1,6 @@
 using System.Text.Json;
 using InsureChatBot.Api.Models.Chatbot;
+using InsureChatBot.Api.Models.Motor;
 
 namespace InsureChatBot.Api.Services.Line
 {
@@ -212,6 +213,67 @@ namespace InsureChatBot.Api.Services.Line
                                     text = "มีแผนอื่นให้เปรียบเทียบไหม"
                                 }
                             }
+                        }
+                    }
+                }
+            };
+        }
+
+        /// <summary>การ์ดที่ส่งให้เจ้าหน้าที่หลังรับคำสั่งซื้อ: แสดงเฉพาะค่าที่มีในแผนที่เลือกจริง.</summary>
+        public static object CreateOrderConfirmationFlex(ChatbotProposalSummary proposal, MotorPackageDetail detail, string orderNo)
+        {
+            var vehicle = $"{proposal.Brand} {proposal.Model} {proposal.Year}".Trim();
+            var sumInsure = detail?.SumInsure > 0 ? detail.SumInsure : proposal.SumInsure;
+            var premium = detail?.PremTotal > 0 ? detail.PremTotal : (proposal.Total > 0 ? proposal.Total : proposal.Premium);
+            var repair = string.IsNullOrWhiteSpace(detail?.RenovType) ? "ไม่มีข้อมูล" : detail.RenovType;
+            var fire = detail?.FireTheft > 0 ? $"{detail.FireTheft:N0}" : "ไม่มีข้อมูล";
+            var flood = detail?.Flood > 0 ? $"{detail.Flood:N0}" : "ไม่มีข้อมูล";
+            var deductible = detail?.Deductible > 0 ? $"{detail.Deductible:N0}" : "ไม่มีข้อมูล";
+
+            object Row(string label, string value) => new
+            {
+                type = "box", layout = "horizontal", spacing = "sm", contents = new object[]
+                {
+                    new { type = "text", text = label, size = "xs", color = "#64748B", flex = 3 },
+                    new { type = "text", text = value, size = "xs", color = "#0F172A", align = "end", flex = 4, wrap = true }
+                }
+            };
+
+            return new
+            {
+                type = "flex",
+                altText = $"คำสั่งซื้อ {orderNo}: {proposal.InsurerName}",
+                contents = new
+                {
+                    type = "bubble", size = "mega",
+                    header = new
+                    {
+                        type = "box", layout = "vertical", backgroundColor = "#0F172A", paddingAll = "18px",
+                        contents = new object[]
+                        {
+                            new { type = "text", text = "คำสั่งซื้อใหม่", color = "#38BDF8", weight = "bold", size = "xs" },
+                            new { type = "text", text = proposal.InsurerName ?? "ไม่มีข้อมูล", color = "#FFFFFF", weight = "bold", size = "xl", margin = "sm", wrap = true },
+                            new { type = "text", text = $"{vehicle} · เลขที่ {orderNo}", color = "#CBD5E1", size = "xs", margin = "sm", wrap = true }
+                        }
+                    },
+                    body = new
+                    {
+                        type = "box", layout = "vertical", spacing = "sm", paddingAll = "18px",
+                        contents = new object[]
+                        {
+                            Row("ชั้น", proposal.InsuranceClass ?? "ไม่มีข้อมูล"), Row("ซ่อม", repair),
+                            Row("ทุนประกัน", sumInsure > 0 ? $"{sumInsure:N0} บาท" : "ไม่มีข้อมูล"),
+                            Row("เบี้ย/ปี", premium > 0 ? $"{premium:N0} บาท" : "ไม่มีข้อมูล"),
+                            Row("ไฟไหม้", fire), Row("Deduct", deductible),
+                            Row("อุปกรณ์ตกแต่ง", "ไม่มีข้อมูล"), Row("น้ำท่วม", flood)
+                        }
+                    },
+                    footer = new
+                    {
+                        type = "box", layout = "vertical", paddingAll = "14px",
+                        contents = new object[]
+                        {
+                            new { type = "button", style = "primary", color = "#0284C7", height = "sm", action = new { type = "message", label = "ยืนยันรับคำสั่งซื้อ", text = $"ยืนยันรับคำสั่งซื้อ {orderNo}" } }
                         }
                     }
                 }

@@ -7,6 +7,7 @@ using InsureChatBot.Api.Services.Interfaces;
 using InsureChatBot.Api.Services.Orders;
 using InsureChatBot.Api.Services.Settings;
 using InsureChatBot.Api.Services.Line;
+using InsureChatBot.Api.Services.Motor;
 using Microsoft.Extensions.Options;
 
 namespace InsureChatBot.Api.Services.Implementations
@@ -25,6 +26,7 @@ namespace InsureChatBot.Api.Services.Implementations
         private readonly IOrderStore _orders;
         private readonly ILineService _lineService;
         private readonly LineSettings _lineSettings;
+        private readonly IMotorFacetService _motorFacets;
         private readonly ILogger<ChatbotService> _logger;
 
         public ChatbotService(
@@ -36,6 +38,7 @@ namespace InsureChatBot.Api.Services.Implementations
             IOrderStore orders,
             ILineService lineService,
             IOptions<LineSettings> lineOptions,
+            IMotorFacetService motorFacets,
             ILogger<ChatbotService> logger)
         {
             _llm = llm;
@@ -46,6 +49,7 @@ namespace InsureChatBot.Api.Services.Implementations
             _orders = orders;
             _lineService = lineService;
             _lineSettings = lineOptions.Value;
+            _motorFacets = motorFacets;
             _logger = logger;
         }
 
@@ -155,12 +159,13 @@ namespace InsureChatBot.Api.Services.Implementations
 
                     if (!string.IsNullOrWhiteSpace(targetLineUserId))
                     {
-                        var flexCard = LineMessageBuilder.CreateInsuranceProposalFlex(selected, context);
+                        var detail = await _motorFacets.GetPackageDetailAsync(selected.PackageId);
+                        var flexCard = LineMessageBuilder.CreateOrderConfirmationFlex(selected, detail, orderNo ?? "IC-ORDER");
                         var isWebOrder = !context.SessionId?.StartsWith("line_") == true;
                         
                         var messageHeader = isWebOrder 
-                            ? $"🔔 [มีคำสั่งซื้อใหม่จากหน้าเว็บ!]\nเลขที่: {orderNo ?? "IC-ORDER"}\nผู้ติดต่อ: คุณ{prospectName}\nเบอร์โทร: {prospectPhone}\nแผน: {selected.InsurerName} ({selected.Brand} {selected.Model})"
-                            : $"🎉 ขอบคุณคุณ {prospectName} ครับ!\nระบบได้บันทึกคำสั่งซื้อเรียบร้อยแล้ว (เลขที่: {orderNo ?? "IC-ORDER"})\nเจ้าหน้าที่ผู้เชี่ยวชาญจะติดต่อกลับที่เบอร์ {prospectPhone} ในเร็วๆ นี้นะครับ 😊";
+                            ? $"มีคำสั่งซื้อใหม่จากหน้าเว็บ\nเลขที่: {orderNo ?? "IC-ORDER"}\nผู้ติดต่อ: คุณ{prospectName}\nเบอร์โทร: {prospectPhone}\nแผน: {selected.InsurerName} ({selected.Brand} {selected.Model})"
+                            : $"ขอบคุณคุณ {prospectName}\nระบบบันทึกคำสั่งซื้อเรียบร้อยแล้ว (เลขที่: {orderNo ?? "IC-ORDER"})\nเจ้าหน้าที่จะติดต่อกลับที่เบอร์ {prospectPhone} นะคะ";
 
                         var confirmNotice = new Dictionary<string, object>
                         {
@@ -168,7 +173,7 @@ namespace InsureChatBot.Api.Services.Implementations
                             ["text"] = messageHeader
                         };
 
-                        _ = _lineService.PushMessageAsync(targetLineUserId, new List<object> { flexCard, confirmNotice });
+                        await _lineService.PushMessageAsync(targetLineUserId, new List<object> { confirmNotice, flexCard });
                     }
                 }
                 catch (Exception ex)

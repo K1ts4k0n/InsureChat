@@ -302,7 +302,7 @@ namespace InsureChatBot.Api.Services.Motor
 
             var serverSql = @"SELECT p.PackageId, ins.Name AS InsurerName, ins.LogoPath,
                                p.PackageName, pt.PolTypeName, m.RenovType, p.SumInsureMax,
-                               p.PremNet, p.PremStm, p.Discount, p.DiscType, m.FireTheft, m.Flood
+                               p.PremNet, p.PremStm, p.Discount, p.DiscType, m.FireTheft, m.Flood, m.OwnAmtDeduc
                         FROM PackagePolType p
                         JOIN PackageMotor m ON p.PackageId = m.PackageId
                         LEFT JOIN PolicyType pt ON p.PolTypeId = pt.PolTypeId
@@ -334,7 +334,8 @@ namespace InsureChatBot.Api.Services.Motor
                     DiscType = x.DiscType == "P" ? "%" : x.DiscType == "B" ? "บาท"
                                : (!string.IsNullOrEmpty(x.DiscType) && x.DiscType != "0" ? "อื่นๆ" : ""),
                     FireSuminsure = fire,
-                    FloodSuminsure = flood
+                    FloodSuminsure = flood,
+                    Deductible = ParseMoney(x.OwnAmtDeduc)
                 };
             });
 

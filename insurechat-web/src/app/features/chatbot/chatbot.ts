@@ -508,10 +508,11 @@ export class Chatbot implements OnInit {
    * สำหรับ GitHub Pages / โหมดออฟไลน์ หรือเมื่อเซิร์ฟเวอร์ภายนอกถูกบล็อก
    */
   private simulateClientReply(userText: string): void {
-    const brand = this.conversationContext?.brand;
-    const model = this.conversationContext?.model;
-    const year = this.conversationContext?.year;
-    const result = getSmartInsuranceReply(userText, brand, model, year);
+    const brand = this.conversationContext?.carBrand;
+    const model = this.conversationContext?.carModel;
+    const year = this.conversationContext?.carYear;
+    const candidates = this.conversationContext?.candidates ?? [];
+    const result = getSmartInsuranceReply(userText, brand, model, year, candidates);
 
     this.statusText.set('กำลังพิมพ์คำตอบ…');
     this.streamingActive.set(true);

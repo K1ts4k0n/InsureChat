@@ -474,7 +474,7 @@ namespace InsureChatBot.Api.Services.Conversation
                     choice = i + 1,
                     insurer = p.InsurerName, @class = p.PolTypeName, renov = p.RenovType,
                     sumInsure = p.SumInsureMax, premiumNet = p.PremNet, premiumTotal = p.PremStm,
-                    fire = p.FireSuminsure, flood = p.FloodSuminsure
+                    fire = p.FireSuminsure, deductible = p.Deductible, accessories = "ไม่มีข้อมูล", flood = p.FloodSuminsure
                 });
             }
 
