@@ -1,6 +1,12 @@
 import { PackageRow } from './motor-facet';
 
-export interface SmartReplyResult { reply: string; suggestions: string[]; }
+export interface SmartReplyResult {
+  reply: string;
+  suggestions: string[];
+  selectedPlan?: PackageRow;
+  contact?: { name: string; phone: string };
+  readyToSubmit?: boolean;
+}
 
 const money = (value: number | undefined): string =>
   typeof value === 'number' && value >= 0 ? value.toLocaleString('en-US') : 'ไม่มีข้อมูล';
@@ -25,11 +31,45 @@ function requestedClass(query: string): string | undefined {
   return undefined;
 }
 
+function selectedChoice(query: string): number | undefined {
+  const match = query.match(/^(?:เลือก(?:แผน)?|แผน(?:ที่)?|เอา(?:แผน)?|ขอ(?:แผน)?)?\s*(\d+)\s*$/);
+  return match ? Number(match[1]) : undefined;
+}
+
+function contactFrom(message: string): { name: string; phone: string } | undefined {
+  const phoneMatch = message.match(/0\d(?:[ -]?\d){7,8}/);
+  if (!phoneMatch) return undefined;
+  const phone = phoneMatch[0].replace(/\D/g, '');
+  const name = message.replace(phoneMatch[0], '').trim();
+  return name && phone.length >= 9 && phone.length <= 10 ? { name, phone } : undefined;
+}
+
 export function getSmartInsuranceReply(
   userText: string, carBrand?: string, carModel?: string, carYear?: number,
-  candidates: PackageRow[] = []
+  candidates: PackageRow[] = [], currentStep?: string
 ): SmartReplyResult {
-  const wanted = requestedClass((userText || '').toLowerCase().trim());
+  const query = (userText || '').toLowerCase().trim();
+  if (currentStep === 'ask_customer') {
+    const contact = contactFrom(userText);
+    if (contact) {
+      return {
+        reply: `บันทึกข้อมูลติดต่อแล้วค่ะ กรุณากด “ส่งคำสั่งซื้อ” เพื่อส่งข้อมูลให้เจ้าหน้าที่นะคะ`,
+        suggestions: ['ส่งคำสั่งซื้อ'], contact, readyToSubmit: true
+      };
+    }
+    return { reply: 'รบกวนพิมพ์ชื่อ และเบอร์โทรศัพท์ 9–10 หลัก เพื่อดำเนินการต่อค่ะ', suggestions: [] };
+  }
+
+  const choice = selectedChoice(query);
+  if (choice && candidates[choice - 1]) {
+    const selectedPlan = candidates[choice - 1];
+    return {
+      reply: `เลือกแผน ${choice}: ${selectedPlan.insurerName} แล้วค่ะ\n\nรบกวนพิมพ์ชื่อ และเบอร์โทรศัพท์ เพื่อให้เจ้าหน้าที่ดำเนินการต่อค่ะ`,
+      suggestions: [], selectedPlan
+    };
+  }
+
+  const wanted = requestedClass(query);
   const matching = wanted
     ? candidates.filter((p) => p.polTypeName?.replace(/\s/g, '').includes(wanted))
     : candidates;

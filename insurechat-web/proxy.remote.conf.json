@@ -1,0 +1,8 @@
+{
+  "/api": {
+    "target": "http://insurechatbackend.clicktodesign.net",
+    "secure": false,
+    "changeOrigin": true,
+    "ws": true
+  }
+}

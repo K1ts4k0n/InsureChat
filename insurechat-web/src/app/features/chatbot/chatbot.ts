@@ -512,7 +512,24 @@ export class Chatbot implements OnInit {
     const model = this.conversationContext?.carModel;
     const year = this.conversationContext?.carYear;
     const candidates = this.conversationContext?.candidates ?? [];
-    const result = getSmartInsuranceReply(userText, brand, model, year, candidates);
+    const result = getSmartInsuranceReply(userText, brand, model, year, candidates, this.conversationContext?.currentStep);
+
+    if (result.selectedPlan) {
+      const p = result.selectedPlan;
+      this.conversationContext.proposals = [{
+        packageId: p.packageId, brand, model, year,
+        insuranceClass: p.polTypeName, sumInsure: p.sumInsureMax,
+        insurerId: p.insurerName, insurerName: p.insurerName,
+        premium: p.premNet, total: p.premStm
+      }];
+      this.conversationContext.currentStep = 'ask_customer';
+    }
+    if (result.contact) {
+      this.conversationContext.prospectName = result.contact.name;
+      this.conversationContext.prospectPhone = result.contact.phone;
+      this.conversationContext.currentStep = 'ready_to_propose';
+      this.isReadyToPropose.set(!!result.readyToSubmit);
+    }
 
     this.statusText.set('กำลังพิมพ์คำตอบ…');
     this.streamingActive.set(true);

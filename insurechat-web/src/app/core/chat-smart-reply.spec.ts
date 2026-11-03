@@ -18,3 +18,24 @@ describe('renderPlanTable', () => {
     expect(output).toContain('| 2 | บริษัทสอง | 1 | ห้าง | 550,000 | 17,500 | 550,000 | 2,000 | ไม่มีข้อมูล | 100,000 |');
   });
 });
+
+describe('getSmartInsuranceReply', () => {
+  it('moves an explicit plan selection to contact collection instead of rendering the table again', async () => {
+    const { getSmartInsuranceReply } = await import('./chat-smart-reply');
+
+    const reply = getSmartInsuranceReply('เลือก 1', 'NISSAN', 'NAVARA', 2014, [plan()]);
+
+    expect(reply.selectedPlan?.packageId).toBe(10);
+    expect(reply.reply).toContain('ชื่อ และเบอร์โทรศัพท์');
+    expect(reply.reply).not.toContain('| # | บริษัท |');
+  });
+
+  it('accepts contact details after a selection and marks the fallback flow ready to submit', async () => {
+    const { getSmartInsuranceReply } = await import('./chat-smart-reply');
+
+    const reply = getSmartInsuranceReply('สมชาย 0812345678', 'NISSAN', 'NAVARA', 2014, [plan()], 'ask_customer');
+
+    expect(reply.contact).toEqual({ name: 'สมชาย', phone: '0812345678' });
+    expect(reply.readyToSubmit).toBe(true);
+  });
+});
