@@ -3,7 +3,7 @@ import { PackageRow } from './motor-facet';
 export interface SmartReplyResult { reply: string; suggestions: string[]; }
 
 const money = (value: number | undefined): string =>
-  typeof value === 'number' && value > 0 ? value.toLocaleString('en-US') : 'ไม่มีข้อมูล';
+  typeof value === 'number' && value >= 0 ? value.toLocaleString('en-US') : 'ไม่มีข้อมูล';
 
 /** Renders only package-search data. One package is always exactly one table row. */
 export function renderPlanTable(plans: PackageRow[]): string {

@@ -226,9 +226,9 @@ namespace InsureChatBot.Api.Services.Line
             var sumInsure = detail?.SumInsure > 0 ? detail.SumInsure : proposal.SumInsure;
             var premium = detail?.PremTotal > 0 ? detail.PremTotal : (proposal.Total > 0 ? proposal.Total : proposal.Premium);
             var repair = string.IsNullOrWhiteSpace(detail?.RenovType) ? "ไม่มีข้อมูล" : detail.RenovType;
-            var fire = detail?.FireTheft > 0 ? $"{detail.FireTheft:N0}" : "ไม่มีข้อมูล";
-            var flood = detail?.Flood > 0 ? $"{detail.Flood:N0}" : "ไม่มีข้อมูล";
-            var deductible = detail?.Deductible > 0 ? $"{detail.Deductible:N0}" : "ไม่มีข้อมูล";
+            var fire = detail == null ? "ไม่มีข้อมูล" : $"{detail.FireTheft:N0}";
+            var flood = detail == null ? "ไม่มีข้อมูล" : $"{detail.Flood:N0}";
+            var deductible = detail == null ? "ไม่มีข้อมูล" : $"{detail.Deductible:N0}";
 
             object Row(string label, string value) => new
             {
