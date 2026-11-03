@@ -238,13 +238,13 @@
                     <td class="prod"><div class="ins">
                       @if (pkg.insurerLogo) { <img class="logo" [src]="pkg.insurerLogo" [alt]="pkg.insurerName" (error)="onLogoError($event)" /> }
                       <strong>{{ pkg.insurerName }}</strong>
-                    </div><span class="pkg">{{ pkg.packageName }}</span></td>
+                    </div><span class="pkg">{{ pkg.packageName }}</span>
+                    <button type="button" class="choose choose-inline" (click)="choosePackage(pkg)">เลือกแผนนี้</button></td>
                     <td><span class="class-badge">{{ pkg.polTypeName }}</span></td>
                     <td>{{ pkg.renovType ? 'ซ่อม' + pkg.renovType : '—' }}</td>
                     <td class="num">{{ pkg.sumInsureMax | number:'1.0-0' }} บ.</td>
                     <td class="num"><strong>{{ pkg.premStm | number:'1.0-0' }} บ.</strong><span class="net">รวมอากร</span></td>
                     <td class="ctr"><div class="plan-actions">
-                      <button type="button" class="choose" (click)="choosePackage(pkg)">เลือกแผนนี้</button>
                       <button type="button" class="share-btn" (click)="printPackagePdf(pkg)">บันทึก PDF</button>
                       <button type="button" class="share-btn" (click)="sharePackageLine(pkg)">ส่ง LINE</button>
                     </div></td>

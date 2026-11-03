@@ -385,6 +385,7 @@ tr:last-child td { border-bottom: none; }
   transition: filter var(--dur) var(--ease);
 }
 .choose:hover { filter: brightness(0.92); }
+.choose-inline { display: inline-flex; margin-top: var(--sp-3); align-items: center; }
 .plan-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); }
 .share-btn {
   padding: var(--sp-2) var(--sp-3); background: var(--surface); color: var(--text-muted);
